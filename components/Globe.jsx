@@ -12,7 +12,10 @@ const Globe = () => {
   const [globe, setGlobe] = useState(null);
   const [satellites, setSatellites] = useState([]);
   const [controls, setControls] = useState(null);
+  const [tooltip, setTooltip] = useState({ visible: false, text: '', x: 0, y: 0 });
   const animationRef = useRef(null);
+  const raycasterRef = useRef(null);
+  const mouseRef = useRef(null);
   
   // Constants
   const GLOBE_RADIUS = 5;
@@ -47,173 +50,6 @@ const Globe = () => {
       tleLine2: '2 28129  56.4575 161.3485 0131510 261.5296 196.9329  2.00562592143236'
     }
   ];
-
-  // Setup Three.js scene
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Init scene
-    const newScene = new THREE.Scene();
-    const newCamera = new THREE.PerspectiveCamera(
-      75, 
-      containerRef.current.clientWidth / containerRef.current.clientHeight, 
-      0.1, 
-      1000
-    );
-    const newRenderer = new THREE.WebGLRenderer({ 
-      antialias: true,
-      alpha: true 
-    });
-
-    newRenderer.setSize(
-      containerRef.current.clientWidth, 
-      containerRef.current.clientHeight
-    );
-    newRenderer.setPixelRatio(window.devicePixelRatio);
-    containerRef.current.appendChild(newRenderer.domElement);
-
-    // Add camera position
-    newCamera.position.z = 12;
-
-    // Set up OrbitControls with settings to allow free rotation
-    const newControls = new OrbitControls(newCamera, newRenderer.domElement);
-    
-    // Configure for smooth, unrestricted rotation
-    newControls.enableDamping = true;
-    newControls.dampingFactor = 0.05;
-    newControls.rotateSpeed = 0.5;
-    newControls.minDistance = 6;
-    newControls.maxDistance = 20;
-    
-    // Important settings to avoid pole constraints
-    newControls.enableRotate = true;
-    newControls.minPolarAngle = 0;
-    newControls.maxPolarAngle = Math.PI;
-    
-    // Create Earth with local high-resolution texture
-    const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
-    const textureLoader = new THREE.TextureLoader();
-    
-    // Use your high-res Earth texture
-    const earthTexture = textureLoader.load('/earth-8k.webp');
-    
-    // Create a material for the globe
-    const globeMaterial = new THREE.MeshPhongMaterial({
-      map: earthTexture,
-      specular: new THREE.Color(0x333333),
-      shininess: 5,
-      bumpScale: 0.02
-    });
-
-    const newGlobe = new THREE.Mesh(globeGeometry, globeMaterial);
-    newScene.add(newGlobe);
-
-    // Add ambient light to ensure the entire globe is visible
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    newScene.add(ambientLight);
-    
-    // Add directional light to give some shading
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 5, 5);
-    newScene.add(directionalLight);
-
-    // Create satellite objects
-    const satelliteMeshes = createSatellites(newScene, textureLoader);
-
-    // Store in state
-    setScene(newScene);
-    setCamera(newCamera);
-    setRenderer(newRenderer);
-    setGlobe(newGlobe);
-    setControls(newControls);
-    setSatellites(satelliteMeshes);
-
-    // Country boundaries (transparent white lines)
-    const countriesGroup = new THREE.Group();
-    newGlobe.add(countriesGroup);
-
-    fetch('https://unpkg.com/world-atlas@2/countries-110m.json')
-      .then(response => response.json())
-      .then(worldData => {
-        const countries = feature(worldData, worldData.objects.countries);
-
-        countries.features.forEach(country => {
-          const countryGeometry = new THREE.BufferGeometry();
-          const vertices = [];
-          
-          try {
-            // Process each polygon
-            country.geometry.coordinates.forEach(polygon => {
-              // Handle MultiPolygon vs Polygon
-              const coords = polygon[0] ? polygon[0] : polygon;
-              
-              coords.forEach(coord => {
-                const [longitude, latitude] = coord;
-                const point3D = latLongToVector3(latitude, longitude, GLOBE_RADIUS * 1.001);
-                vertices.push(point3D.x, point3D.y, point3D.z);
-              });
-            });
-            
-            countryGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            
-            const countryLine = new THREE.Line(
-              countryGeometry,
-              new THREE.LineBasicMaterial({ 
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.3
-              })
-            );
-            
-            countriesGroup.add(countryLine);
-          } catch (err) {
-            console.error('Error processing country:', err);
-          }
-        });
-      })
-      .catch(error => console.error('Error loading country data:', error));
-
-    // Animation loop
-    const animate = () => {
-      animationRef.current = requestAnimationFrame(animate);
-      
-      // Update satellite positions every frame
-      updateSatellitePositions(satelliteMeshes);
-      
-      if (newControls) newControls.update();
-      if (newRenderer && newScene && newCamera) {
-        newRenderer.render(newScene, newCamera);
-      }
-    };
-
-    animate();
-
-    // Handle window resize
-    const handleResize = () => {
-      if (!containerRef.current || !newCamera || !newRenderer) return;
-      
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      
-      newCamera.aspect = width / height;
-      newCamera.updateProjectionMatrix();
-      
-      newRenderer.setSize(width, height);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (containerRef.current && newRenderer) {
-        containerRef.current.removeChild(newRenderer.domElement);
-      }
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
 
   // Create satellite meshes
   const createSatellites = (scene, textureLoader) => {
@@ -256,6 +92,178 @@ const Globe = () => {
     
     return satelliteMeshes;
   };
+
+  // Setup Three.js scene
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // Init scene
+    const newScene = new THREE.Scene();
+    const newCamera = new THREE.PerspectiveCamera(
+      75, 
+      containerRef.current.clientWidth / containerRef.current.clientHeight, 
+      0.1, 
+      1000
+    );
+    const newRenderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      alpha: true 
+    });
+
+    newRenderer.setSize(
+      containerRef.current.clientWidth, 
+      containerRef.current.clientHeight
+    );
+    newRenderer.setPixelRatio(window.devicePixelRatio);
+    containerRef.current.appendChild(newRenderer.domElement);
+
+    // Add camera position
+    newCamera.position.z = 12;
+
+    // Set up OrbitControls with settings to allow free rotation
+    const newControls = new OrbitControls(newCamera, newRenderer.domElement);
+    
+    // Configure for smooth, unrestricted rotation
+    newControls.enableDamping = true;
+    newControls.dampingFactor = 0.05;
+    newControls.rotateSpeed = 0.5;
+    newControls.minDistance = 6;
+    newControls.maxDistance = 20;
+    
+    // Important settings to avoid pole constraints
+    newControls.enableRotate = true;
+    newControls.minPolarAngle = 0;
+    newControls.maxPolarAngle = Math.PI;
+
+    // Initialize raycaster and mouse
+    raycasterRef.current = new THREE.Raycaster();
+    mouseRef.current = new THREE.Vector2();
+
+    // Create Earth with local high-resolution texture
+    const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
+    const textureLoader = new THREE.TextureLoader();
+    
+    // Use your high-res Earth texture
+    const earthTexture = textureLoader.load('/earth-8k.webp');
+    
+    // Create a material for the globe
+    const globeMaterial = new THREE.MeshPhongMaterial({
+      map: earthTexture,
+      specular: new THREE.Color(0x333333),
+      shininess: 5,
+      bumpScale: 0.02
+    });
+
+    const newGlobe = new THREE.Mesh(globeGeometry, globeMaterial);
+    newScene.add(newGlobe);
+
+    // Add ambient light to ensure the entire globe is visible
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    newScene.add(ambientLight);
+    
+    // Add directional light to give some shading
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 5, 5);
+    newScene.add(directionalLight);
+
+    // Create satellite objects
+    const satelliteMeshes = createSatellites(newScene, textureLoader);
+
+    // Store in state
+    setScene(newScene);
+    setCamera(newCamera);
+    setRenderer(newRenderer);
+    setGlobe(newGlobe);
+    setControls(newControls);
+    setSatellites(satelliteMeshes);
+
+    // Country boundaries (transparent white lines)
+    const countriesGroup = new THREE.Group();
+    newGlobe.add(countriesGroup);
+
+    // Add mouse move handler for tooltip
+    const onMouseMove = (event) => {
+      if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
+
+      // Calculate mouse position in normalized device coordinates (-1 to +1)
+      const rect = containerRef.current.getBoundingClientRect();
+      mouseRef.current.x = ((event.clientX - rect.left) / containerRef.current.clientWidth) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / containerRef.current.clientHeight) * 2 + 1;
+
+      // Update the picking ray with the camera and mouse position
+      raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
+
+      // Calculate objects intersecting the picking ray
+      const intersects = raycasterRef.current.intersectObjects(newScene.children, true);
+
+      // Find if we're hovering over a satellite
+      const satelliteIntersect = intersects.find(intersect =>
+          intersect.object instanceof THREE.Sprite
+      );
+
+      if (satelliteIntersect) {
+        const satelliteMesh = satelliteIntersect.object;
+        const satelliteData = satelliteMeshes.find(sat => sat.mesh === satelliteMesh);
+
+        if (satelliteData) {
+          setTooltip({
+            visible: true,
+            text: satelliteData.tle.name,
+            x: event.clientX - rect.left + 10,
+            y: event.clientY - rect.top + 10
+          });
+        }
+      } else {
+        setTooltip({ visible: false, text: '', x: 0, y: 0 });
+      }
+    };
+
+    containerRef.current.addEventListener('mousemove', onMouseMove);
+
+    // Animation loop
+    const animate = () => {
+      animationRef.current = requestAnimationFrame(animate);
+      
+      // Update satellite positions every frame
+      updateSatellitePositions(satelliteMeshes);
+      
+      if (newControls) newControls.update();
+      if (newRenderer && newScene && newCamera) {
+        newRenderer.render(newScene, newCamera);
+      }
+    };
+
+    animate();
+
+    // Handle window resize
+    const handleResize = () => {
+      if (!containerRef.current || !newCamera || !newRenderer) return;
+      
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+      
+      newCamera.aspect = width / height;
+      newCamera.updateProjectionMatrix();
+      
+      newRenderer.setSize(width, height);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (containerRef.current) {
+        containerRef.current.removeEventListener('mousemove', onMouseMove);
+        if (newRenderer) {
+          containerRef.current.removeChild(newRenderer.domElement);
+        }
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []); // Remove satellites from dependency array
 
   // Update satellite positions based on current time
   const updateSatellitePositions = (satelliteMeshes) => {
@@ -333,8 +341,28 @@ const Globe = () => {
   };
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {tooltip.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            left: tooltip.x,
+            top: tooltip.y,
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '5px 10px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            pointerEvents: 'none',
+            zIndex: 1000
+          }}
+        >
+          {tooltip.text}
+        </div>
+      )}
+    </div>
   );
 };
 
-export default Globe; 
+export default Globe;
