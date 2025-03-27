@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { feature } from 'topojson-client';
 import * as satellite from 'satellite.js';
-//Github Ace Test
+
 const Globe = () => {
   const containerRef = useRef(null);
   const [scene, setScene] = useState(null);
