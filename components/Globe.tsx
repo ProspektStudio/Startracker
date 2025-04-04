@@ -3,41 +3,81 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { feature } from 'topojson-client';
 
-const Globe = () => {
-  const containerRef = useRef(null);
-  const [scene, setScene] = useState(null);
-  const [camera, setCamera] = useState(null);
-  const [renderer, setRenderer] = useState(null);
-  const [globe, setGlobe] = useState(null);
-  const [satellites, setSatellites] = useState([]);
-  const [controls, setControls] = useState(null);
-  const [tooltip, setTooltip] = useState({ visible: false, text: '', x: 0, y: 0 });
-  const animationRef = useRef(null);
-  const raycasterRef = useRef(null);
-  const mouseRef = useRef(null);
-  const lastUpdateRef = useRef(null);
-  const updateIntervalRef = useRef(5000); // 5 seconds between updates
-  const satelliteMeshesRef = useRef([]);
+interface SatelliteData {
+  name: string;
+  noradId: string;
+  coordinates?: {
+    lat: number;
+    long: number;
+  };
+  orbit: {
+    height: number;
+    inclination: number;
+    phase: number;
+  };
+}
+
+interface SatelliteMesh {
+  mesh: THREE.Sprite;
+  data: SatelliteData;
+  phase: number;
+}
+
+interface TooltipState {
+  visible: boolean;
+  text: string;
+  x: number;
+  y: number;
+}
+
+interface SatellitePosition {
+  NORAD_CAT_ID: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface TLE {
+  name: string;
+  tleLine1: string;
+  tleLine2: string;
+}
+
+const Globe: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scene, setScene] = useState<THREE.Scene | null>(null);
+  const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
+  const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
+  const [globe, setGlobe] = useState<THREE.Mesh | null>(null);
+  const [satellites, setSatellites] = useState<SatelliteMesh[]>([]);
+  const [controls, setControls] = useState<OrbitControls | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
+  const animationRef = useRef<number | null>(null);
+  const raycasterRef = useRef<THREE.Raycaster | null>(null);
+  const mouseRef = useRef<THREE.Vector2 | null>(null);
+  const lastUpdateRef = useRef<number | null>(null);
+  const updateIntervalRef = useRef<number>(5000);
+  const satelliteMeshesRef = useRef<SatelliteMesh[]>([]);
 
   // Constants
   const GLOBE_RADIUS = 5;
-  const SATELLITE_SIZE = 0.15; // Size of satellite dots
-  const SATELLITE_ORBIT_HEIGHT = 0.5; // Add height to satellite orbits for visibility
-  const ORBIT_POINTS = 100; // Number of points in orbit line
-  const ORBIT_SPEED = 0.001; // Speed of orbital motion
-  const ORBIT_HEIGHT = GLOBE_RADIUS + 0.5; // Height above globe
+  const SATELLITE_SIZE = 0.15;
+  const SATELLITE_ORBIT_HEIGHT = 0.5;
+  const ORBIT_POINTS = 100;
+  const ORBIT_SPEED = 0.001;
+  const ORBIT_HEIGHT = GLOBE_RADIUS + 0.5;
 
   // Constants for realistic orbital heights (in Earth radii)
-  const EARTH_RADIUS = 6371; // km
+  const EARTH_RADIUS = 6371;
   const ORBIT_HEIGHTS = {
-    LEO: (400 / EARTH_RADIUS), // Low Earth Orbit (ISS)
-    STARLINK: (550 / EARTH_RADIUS), // Starlink orbit
-    MEO: (20200 / EARTH_RADIUS), // Medium Earth Orbit (GPS)
-    GEO: (35786 / EARTH_RADIUS), // Geostationary Orbit
+    LEO: (400 / EARTH_RADIUS),
+    STARLINK: (550 / EARTH_RADIUS),
+    MEO: (20200 / EARTH_RADIUS),
+    GEO: (35786 / EARTH_RADIUS),
   };
 
   // Sample satellite TLEs (Two-Line Element sets)
-  const sampleTLEs = [
+  const sampleTLEs: TLE[] = [
     {
       name: 'ISS (ZARYA)',
       tleLine1: '1 25544U 98067A   23158.54037539  .00010780  00000+0  19952-3 0  9997',
@@ -75,12 +115,13 @@ const Globe = () => {
   ];
 
   // Update the test satellites array to include both orbit and initial coordinates
-  const testSatellites = [
+  const testSatellites: SatelliteData[] = [
     { 
       name: 'ISS (ZARYA)', 
       noradId: '25544',
       coordinates: { lat: 51.6415, long: 183.9210 },
       orbit: {
+        height: ORBIT_HEIGHTS.LEO,
         inclination: 51.6415 * (Math.PI / 180),
         phase: 0
       }
@@ -90,6 +131,7 @@ const Globe = () => {
       noradId: '20580',
       coordinates: { lat: 28.4699, long: 232.9546 },
       orbit: {
+        height: ORBIT_HEIGHTS.LEO,
         inclination: 28.4699 * (Math.PI / 180),
         phase: Math.PI / 2
       }
@@ -99,6 +141,7 @@ const Globe = () => {
       noradId: '33591',
       coordinates: { lat: 99.1691, long: 206.1636 },
       orbit: {
+        height: ORBIT_HEIGHTS.LEO,
         inclination: 99.1691 * (Math.PI / 180),
         phase: Math.PI
       }
@@ -108,6 +151,7 @@ const Globe = () => {
       noradId: '44713',
       coordinates: { lat: 53.0540, long: 226.3036 },
       orbit: {
+        height: ORBIT_HEIGHTS.STARLINK,
         inclination: 53.0540 * (Math.PI / 180),
         phase: 3 * Math.PI / 2
       }
@@ -117,6 +161,7 @@ const Globe = () => {
       noradId: '28129',
       coordinates: { lat: 56.4575, long: 161.3485 },
       orbit: {
+        height: ORBIT_HEIGHTS.MEO,
         inclination: 56.4575 * (Math.PI / 180),
         phase: Math.PI / 4
       }
@@ -124,7 +169,7 @@ const Globe = () => {
   ];
 
   // Add this helper function to convert lat/long to 3D coordinates
-  const latLongToVector3 = (latitude, longitude, radius) => {
+  const latLongToVector3 = (latitude: number, longitude: number, radius: number): THREE.Vector3 => {
     const phi = (90 - latitude) * (Math.PI / 180);
     const theta = (longitude + 180) * (Math.PI / 180);
 
@@ -136,8 +181,8 @@ const Globe = () => {
   };
 
   // Add this helper function to create orbital path
-  const createOrbitPath = (inclination, radius) => {
-    const points = [];
+  const createOrbitPath = (inclination: number, radius: number): THREE.Vector3[] => {
+    const points: THREE.Vector3[] = [];
     for (let i = 0; i <= ORBIT_POINTS; i++) {
       const angle = (i / ORBIT_POINTS) * Math.PI * 2;
       const x = Math.cos(angle) * radius;
@@ -149,7 +194,7 @@ const Globe = () => {
   };
 
   // Update the createSatelliteMesh function
-  const createSatelliteMesh = (scene, textureLoader, satData) => {
+  const createSatelliteMesh = (scene: THREE.Scene, textureLoader: THREE.TextureLoader, satData: SatelliteData): SatelliteMesh => {
     const satelliteTexture = textureLoader.load('/dot-medium.13d7e8cb.png');
     
     const spriteMaterial = new THREE.SpriteMaterial({ 
@@ -171,15 +216,15 @@ const Globe = () => {
   };
 
   // Generate satellites with more realistic parameters
-  const generateSatellites = () => {
-    const satellites = [
+  const generateSatellites = (): SatelliteData[] => {
+    const satellites: SatelliteData[] = [
       // ISS - Low Earth Orbit
       { 
         name: 'ISS (ZARYA)', 
         noradId: '25544',
         orbit: {
           height: ORBIT_HEIGHTS.LEO,
-          inclination: 51.6415 * (Math.PI / 180), // Real ISS inclination
+          inclination: 51.6415 * (Math.PI / 180),
           phase: 0
         }
       },
@@ -190,7 +235,7 @@ const Globe = () => {
         noradId: `44713${i.toString().padStart(2, '0')}`,
         orbit: {
           height: ORBIT_HEIGHTS.STARLINK,
-          inclination: 53 * (Math.PI / 180), // Real Starlink inclination
+          inclination: 53 * (Math.PI / 180),
           phase: (i / 60) * Math.PI * 2
         }
       })),
@@ -201,7 +246,7 @@ const Globe = () => {
         noradId: `4014${i.toString().padStart(2, '0')}`,
         orbit: {
           height: ORBIT_HEIGHTS.MEO,
-          inclination: 55 * (Math.PI / 180), // Real GPS inclination
+          inclination: 55 * (Math.PI / 180),
           phase: (i / 24) * Math.PI * 2
         }
       })),
@@ -212,7 +257,7 @@ const Globe = () => {
         noradId: `3837${i.toString().padStart(2, '0')}`,
         orbit: {
           height: ORBIT_HEIGHTS.GEO,
-          inclination: 0, // Geostationary satellites have 0 inclination
+          inclination: 0,
           phase: (i / 15) * Math.PI * 2
         }
       }))
@@ -337,7 +382,7 @@ const Globe = () => {
     };
   }, []);
 
-  const updateSatellitePositions = async (satelliteMeshes) => {
+  const updateSatellitePositions = async (satelliteMeshes: SatelliteMesh[]) => {
     try {
       const satelliteIds = satelliteMeshes.map(sat => sat.data.noradId);
       const positions = await fetchSatellitePositions(satelliteIds);
@@ -366,7 +411,7 @@ const Globe = () => {
   };
 
   // Update the fetchSatellitePositions function to ensure it's correctly calling our proxy
-  const fetchSatellitePositions = async (satelliteIds) => {
+  const fetchSatellitePositions = async (satelliteIds: string[]): Promise<SatellitePosition[]> => {
     try {
       // Log the request for debugging
       console.log('Fetching satellites:', satelliteIds);
