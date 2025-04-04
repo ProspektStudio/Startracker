@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { feature } from 'topojson-client';
-import * as satellite from 'satellite.js';
 
 const Globe = () => {
   const containerRef = useRef(null);
@@ -16,11 +15,26 @@ const Globe = () => {
   const animationRef = useRef(null);
   const raycasterRef = useRef(null);
   const mouseRef = useRef(null);
-  
+  const lastUpdateRef = useRef(null);
+  const updateIntervalRef = useRef(5000); // 5 seconds between updates
+  const satelliteMeshesRef = useRef([]);
+
   // Constants
   const GLOBE_RADIUS = 5;
-  const SATELLITE_SIZE = 0.15; // Increased size for better visibility
+  const SATELLITE_SIZE = 0.15; // Size of satellite dots
   const SATELLITE_ORBIT_HEIGHT = 0.5; // Add height to satellite orbits for visibility
+  const ORBIT_POINTS = 100; // Number of points in orbit line
+  const ORBIT_SPEED = 0.001; // Speed of orbital motion
+  const ORBIT_HEIGHT = GLOBE_RADIUS + 0.5; // Height above globe
+
+  // Constants for realistic orbital heights (in Earth radii)
+  const EARTH_RADIUS = 6371; // km
+  const ORBIT_HEIGHTS = {
+    LEO: (400 / EARTH_RADIUS), // Low Earth Orbit (ISS)
+    STARLINK: (550 / EARTH_RADIUS), // Starlink orbit
+    MEO: (20200 / EARTH_RADIUS), // Medium Earth Orbit (GPS)
+    GEO: (35786 / EARTH_RADIUS), // Geostationary Orbit
+  };
 
   // Sample satellite TLEs (Two-Line Element sets)
   const sampleTLEs = [
@@ -51,46 +65,160 @@ const Globe = () => {
     }
   ];
 
-  // Create satellite meshes
-  const createSatellites = (scene, textureLoader) => {
-    const satelliteMeshes = [];
-    
-    // Load the white dot texture
+  // Sample satellite TLEs (Two-Line Element sets)
+  const sampleSatellites = [
+    { name: 'ISS (ZARYA)', noradId: '25544' },
+    { name: 'HUBBLE', noradId: '20580' },
+    { name: 'NOAA 19', noradId: '33591' },
+    { name: 'STARLINK-1019', noradId: '44713' },
+    { name: 'GPS IIR-10', noradId: '28129' }
+  ];
+
+  // Update the test satellites array to include both orbit and initial coordinates
+  const testSatellites = [
+    { 
+      name: 'ISS (ZARYA)', 
+      noradId: '25544',
+      coordinates: { lat: 51.6415, long: 183.9210 },
+      orbit: {
+        inclination: 51.6415 * (Math.PI / 180),
+        phase: 0
+      }
+    },
+    { 
+      name: 'HUBBLE', 
+      noradId: '20580',
+      coordinates: { lat: 28.4699, long: 232.9546 },
+      orbit: {
+        inclination: 28.4699 * (Math.PI / 180),
+        phase: Math.PI / 2
+      }
+    },
+    { 
+      name: 'NOAA 19', 
+      noradId: '33591',
+      coordinates: { lat: 99.1691, long: 206.1636 },
+      orbit: {
+        inclination: 99.1691 * (Math.PI / 180),
+        phase: Math.PI
+      }
+    },
+    { 
+      name: 'STARLINK-1019', 
+      noradId: '44713',
+      coordinates: { lat: 53.0540, long: 226.3036 },
+      orbit: {
+        inclination: 53.0540 * (Math.PI / 180),
+        phase: 3 * Math.PI / 2
+      }
+    },
+    { 
+      name: 'GPS IIR-10', 
+      noradId: '28129',
+      coordinates: { lat: 56.4575, long: 161.3485 },
+      orbit: {
+        inclination: 56.4575 * (Math.PI / 180),
+        phase: Math.PI / 4
+      }
+    }
+  ];
+
+  // Add this helper function to convert lat/long to 3D coordinates
+  const latLongToVector3 = (latitude, longitude, radius) => {
+    const phi = (90 - latitude) * (Math.PI / 180);
+    const theta = (longitude + 180) * (Math.PI / 180);
+
+    return new THREE.Vector3(
+      -radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+  };
+
+  // Add this helper function to create orbital path
+  const createOrbitPath = (inclination, radius) => {
+    const points = [];
+    for (let i = 0; i <= ORBIT_POINTS; i++) {
+      const angle = (i / ORBIT_POINTS) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius * Math.sin(inclination);
+      const z = Math.sin(angle) * radius * Math.cos(inclination);
+      points.push(new THREE.Vector3(x, y, z));
+    }
+    return points;
+  };
+
+  // Update the createSatelliteMesh function
+  const createSatelliteMesh = (scene, textureLoader, satData) => {
     const satelliteTexture = textureLoader.load('/dot-medium.13d7e8cb.png');
     
-    sampleTLEs.forEach((tle, index) => {
-      // Create sprite material with the white dot texture
-      const spriteMaterial = new THREE.SpriteMaterial({ 
-        map: satelliteTexture,
-        color: 0xffffff, // White color
-        sizeAttenuation: true
-      });
-      
-      // Create sprite (always faces camera)
-      const satelliteSprite = new THREE.Sprite(spriteMaterial);
-      satelliteSprite.scale.set(SATELLITE_SIZE, SATELLITE_SIZE, 1);
-      scene.add(satelliteSprite);
-      
-      // Create orbit line
-      const orbitGeometry = new THREE.BufferGeometry();
-      const orbitMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff, // White orbit lines
-        transparent: true, 
-        opacity: 0.3
-      });
-      const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
-      scene.add(orbitLine);
-      
-      // Store both the satellite sprite and its orbit
-      satelliteMeshes.push({
-        mesh: satelliteSprite,
-        orbit: orbitLine,
-        tle: tle,
-        satrec: satellite.twoline2satrec(tle.tleLine1, tle.tleLine2)
-      });
+    const spriteMaterial = new THREE.SpriteMaterial({ 
+      map: satelliteTexture,
+      color: 0xffffff,
+      sizeAttenuation: true
     });
     
-    return satelliteMeshes;
+    const satelliteSprite = new THREE.Sprite(spriteMaterial);
+    satelliteSprite.scale.set(SATELLITE_SIZE, SATELLITE_SIZE, 1);
+    
+    scene.add(satelliteSprite);
+    
+    return {
+      mesh: satelliteSprite,
+      data: satData,
+      phase: satData.orbit.phase
+    };
+  };
+
+  // Generate satellites with more realistic parameters
+  const generateSatellites = () => {
+    const satellites = [
+      // ISS - Low Earth Orbit
+      { 
+        name: 'ISS (ZARYA)', 
+        noradId: '25544',
+        orbit: {
+          height: ORBIT_HEIGHTS.LEO,
+          inclination: 51.6415 * (Math.PI / 180), // Real ISS inclination
+          phase: 0
+        }
+      },
+
+      // Starlink satellites - 550km orbit
+      ...Array.from({ length: 60 }, (_, i) => ({
+        name: `STARLINK-${1000 + i}`,
+        noradId: `44713${i.toString().padStart(2, '0')}`,
+        orbit: {
+          height: ORBIT_HEIGHTS.STARLINK,
+          inclination: 53 * (Math.PI / 180), // Real Starlink inclination
+          phase: (i / 60) * Math.PI * 2
+        }
+      })),
+
+      // GPS satellites - 20,200km orbit
+      ...Array.from({ length: 24 }, (_, i) => ({
+        name: `GPS-${i + 1}`,
+        noradId: `4014${i.toString().padStart(2, '0')}`,
+        orbit: {
+          height: ORBIT_HEIGHTS.MEO,
+          inclination: 55 * (Math.PI / 180), // Real GPS inclination
+          phase: (i / 24) * Math.PI * 2
+        }
+      })),
+
+      // Geostationary satellites - 35,786km orbit
+      ...Array.from({ length: 15 }, (_, i) => ({
+        name: `GEO-${i + 1}`,
+        noradId: `3837${i.toString().padStart(2, '0')}`,
+        orbit: {
+          height: ORBIT_HEIGHTS.GEO,
+          inclination: 0, // Geostationary satellites have 0 inclination
+          phase: (i / 15) * Math.PI * 2
+        }
+      }))
+    ];
+
+    return satellites;
   };
 
   // Setup Three.js scene
@@ -105,6 +233,7 @@ const Globe = () => {
       0.1, 
       1000
     );
+
     const newRenderer = new THREE.WebGLRenderer({ 
       antialias: true,
       alpha: true 
@@ -114,39 +243,16 @@ const Globe = () => {
       containerRef.current.clientWidth, 
       containerRef.current.clientHeight
     );
-    newRenderer.setPixelRatio(window.devicePixelRatio);
     containerRef.current.appendChild(newRenderer.domElement);
 
-    // Add camera position
+    // Position camera
     newCamera.position.z = 12;
 
-    // Set up OrbitControls with settings to allow free rotation
-    const newControls = new OrbitControls(newCamera, newRenderer.domElement);
-    
-    // Configure for smooth, unrestricted rotation
-    newControls.enableDamping = true;
-    newControls.dampingFactor = 0.05;
-    newControls.rotateSpeed = 0.5;
-    newControls.minDistance = 6;
-    newControls.maxDistance = 20;
-    
-    // Important settings to avoid pole constraints
-    newControls.enableRotate = true;
-    newControls.minPolarAngle = 0;
-    newControls.maxPolarAngle = Math.PI;
-
-    // Initialize raycaster and mouse
-    raycasterRef.current = new THREE.Raycaster();
-    mouseRef.current = new THREE.Vector2();
-
-    // Create Earth with local high-resolution texture
+    // Create Earth
     const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
     const textureLoader = new THREE.TextureLoader();
-    
-    // Use your high-res Earth texture
     const earthTexture = textureLoader.load('/earth-8k.webp');
     
-    // Create a material for the globe
     const globeMaterial = new THREE.MeshPhongMaterial({
       map: earthTexture,
       specular: new THREE.Color(0x333333),
@@ -157,75 +263,57 @@ const Globe = () => {
     const newGlobe = new THREE.Mesh(globeGeometry, globeMaterial);
     newScene.add(newGlobe);
 
-    // Add ambient light to ensure the entire globe is visible
+    // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     newScene.add(ambientLight);
     
-    // Add directional light to give some shading
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 5, 5);
     newScene.add(directionalLight);
 
-    // Create satellite objects
-    const satelliteMeshes = createSatellites(newScene, textureLoader);
+    // Generate satellites
+    const allSatellites = generateSatellites();
+    console.log(`Created ${allSatellites.length} satellites`);
 
-    // Store in state
+    const satelliteMeshes = allSatellites.map(satData => 
+      createSatelliteMesh(newScene, textureLoader, satData)
+    );
+    
+    // Set up OrbitControls
+    const newControls = new OrbitControls(newCamera, newRenderer.domElement);
+    newControls.enableDamping = true;
+    newControls.dampingFactor = 0.05;
+    newControls.rotateSpeed = 0.5;
+    newControls.minDistance = 7;
+    newControls.maxDistance = 20;
+
+    // Store everything in state/refs
     setScene(newScene);
     setCamera(newCamera);
     setRenderer(newRenderer);
     setGlobe(newGlobe);
     setControls(newControls);
     setSatellites(satelliteMeshes);
-
-    // Country boundaries (transparent white lines)
-    const countriesGroup = new THREE.Group();
-    newGlobe.add(countriesGroup);
-
-    // Add mouse move handler for tooltip
-    const onMouseMove = (event) => {
-      if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
-
-      // Calculate mouse position in normalized device coordinates (-1 to +1)
-      const rect = containerRef.current.getBoundingClientRect();
-      mouseRef.current.x = ((event.clientX - rect.left) / containerRef.current.clientWidth) * 2 - 1;
-      mouseRef.current.y = -((event.clientY - rect.top) / containerRef.current.clientHeight) * 2 + 1;
-
-      // Update the picking ray with the camera and mouse position
-      raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
-
-      // Calculate objects intersecting the picking ray
-      const intersects = raycasterRef.current.intersectObjects(newScene.children, true);
-
-      // Find if we're hovering over a satellite
-      const satelliteIntersect = intersects.find(intersect =>
-          intersect.object instanceof THREE.Sprite
-      );
-
-      if (satelliteIntersect) {
-        const satelliteMesh = satelliteIntersect.object;
-        const satelliteData = satelliteMeshes.find(sat => sat.mesh === satelliteMesh);
-
-        if (satelliteData) {
-          setTooltip({
-            visible: true,
-            text: satelliteData.tle.name,
-            x: event.clientX - rect.left + 10,
-            y: event.clientY - rect.top + 10
-          });
-        }
-      } else {
-        setTooltip({ visible: false, text: '', x: 0, y: 0 });
-      }
-    };
-
-    containerRef.current.addEventListener('mousemove', onMouseMove);
+    satelliteMeshesRef.current = satelliteMeshes;
 
     // Animation loop
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
       
-      // Update satellite positions every frame
-      updateSatellitePositions(satelliteMeshes);
+      satelliteMeshesRef.current.forEach(sat => {
+        // Kepler's Third Law: orbital period is proportional to semi-major axis^(3/2)
+        const orbitalSpeed = 0.001 * Math.pow(sat.data.orbit.height, -1.5);
+        sat.phase = (sat.phase + orbitalSpeed) % (Math.PI * 2);
+        
+        const radius = GLOBE_RADIUS * (1 + sat.data.orbit.height);
+        const inclination = sat.data.orbit.inclination;
+        
+        const x = Math.cos(sat.phase) * radius;
+        const y = Math.sin(sat.phase) * radius * Math.sin(inclination);
+        const z = Math.sin(sat.phase) * radius * Math.cos(inclination);
+        
+        sat.mesh.position.set(x, y, z);
+      });
       
       if (newControls) newControls.update();
       if (newRenderer && newScene && newCamera) {
@@ -235,109 +323,79 @@ const Globe = () => {
 
     animate();
 
-    // Handle window resize
-    const handleResize = () => {
-      if (!containerRef.current || !newCamera || !newRenderer) return;
-      
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      
-      newCamera.aspect = width / height;
-      newCamera.updateProjectionMatrix();
-      
-      newRenderer.setSize(width, height);
-    };
-
-    window.addEventListener('resize', handleResize);
+    // Update positions periodically
+    const updateInterval = setInterval(() => {
+      updateSatellitePositions(satelliteMeshesRef.current);
+    }, 5000); // Update every 5 seconds
 
     // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (containerRef.current) {
-        containerRef.current.removeEventListener('mousemove', onMouseMove);
-        if (newRenderer) {
-          containerRef.current.removeChild(newRenderer.domElement);
-        }
+      if (containerRef.current && newRenderer) {
+        containerRef.current.removeChild(newRenderer.domElement);
       }
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      clearInterval(updateInterval);
     };
-  }, []); // Remove satellites from dependency array
+  }, []);
 
-  // Update satellite positions based on current time
-  const updateSatellitePositions = (satelliteMeshes) => {
-    // Get current time
-    const now = new Date();
-    
-    satelliteMeshes.forEach(sat => {
-      // Calculate satellite position
-      const positionAndVelocity = satellite.propagate(sat.satrec, now);
+  // Update the updateSatellitePositions function to use real-time data
+  const updateSatellitePositions = async (satelliteMeshes) => {
+    try {
+      const satelliteIds = satelliteMeshes.map(sat => sat.data.noradId);
+      const positions = await fetchSatellitePositions(satelliteIds);
       
-      // If position couldn't be calculated, skip this satellite
-      if (!positionAndVelocity.position) return;
-      
-      // Convert position from km to Three.js units
-      const earthRadiusInKm = 6371;
-      const scale = GLOBE_RADIUS / earthRadiusInKm;
-      
-      const position = positionAndVelocity.position;
-      const x = position.x * scale;
-      const y = position.z * scale; // Swap y and z to match Three.js coordinate system
-      const z = -position.y * scale; // Invert y
-      
-      // Update satellite position
-      sat.mesh.position.set(x, y, z);
-      
-      // Update orbit line
-      updateOrbitLine(sat, scale);
-    });
-  };
-  
-  // Update the orbit line for a satellite
-  const updateOrbitLine = (sat, scale) => {
-    const earthRadiusInKm = 6371;
-    const scaleFactor = scale || GLOBE_RADIUS / earthRadiusInKm;
-    const points = [];
-    
-    // Generate points along orbit at regular intervals
-    const minutesPerOrbit = 90; // Approximate for LEO satellites
-    const pointsCount = 100;
-    
-    for (let i = 0; i < pointsCount; i++) {
-      const date = new Date();
-      date.setMinutes(date.getMinutes() + (i * minutesPerOrbit / pointsCount));
-      
-      const posAndVel = satellite.propagate(sat.satrec, date);
-      if (posAndVel.position) {
-        const pos = posAndVel.position;
-        points.push(
-          new THREE.Vector3(
-            pos.x * scaleFactor,
-            pos.z * scaleFactor,
-            -pos.y * scaleFactor
-          )
+      satelliteMeshes.forEach(sat => {
+        const satData = positions.find(pos => pos.NORAD_CAT_ID === sat.data.noradId);
+        
+        if (!satData) return;
+        
+        // Convert Celestrak coordinates to lat/long
+        const lat = Math.asin(satData.z / Math.sqrt(satData.x * satData.x + satData.y * satData.y + satData.z * satData.z));
+        const long = Math.atan2(satData.y, satData.x);
+        
+        // Update position
+        const newPosition = latLongToVector3(
+          lat * (180 / Math.PI),
+          long * (180 / Math.PI),
+          GLOBE_RADIUS + 0.5
         );
-      }
-    }
-    
-    if (points.length > 1) {
-      const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
-      sat.orbit.geometry.dispose();
-      sat.orbit.geometry = orbitGeometry;
+        
+        sat.mesh.position.copy(newPosition);
+      });
+    } catch (error) {
+      console.error('Error updating satellite positions:', error);
     }
   };
 
-  // Helper function to convert lat/long to 3D coords
-  const latLongToVector3 = (latitude, longitude, radius) => {
-    const phi = (90 - latitude) * (Math.PI / 180);
-    const theta = (longitude + 180) * (Math.PI / 180);
+  // Update the fetchSatellitePositions function to ensure it's correctly calling our proxy
+  const fetchSatellitePositions = async (satelliteIds) => {
+    try {
+      // Log the request for debugging
+      console.log('Fetching satellites:', satelliteIds);
+      
+      const response = await fetch(
+        `/api/satellites?satellites=${satelliteIds.join(',')}`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        }
+      );
 
-    return new THREE.Vector3(
-      -radius * Math.sin(phi) * Math.cos(theta),
-      radius * Math.cos(phi),
-      radius * Math.sin(phi) * Math.sin(theta)
-    );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Received satellite data:', data); // Debug log
+      return data;
+    } catch (error) {
+      console.error('Error fetching satellite positions:', error);
+      return [];
+    }
   };
 
   return (
