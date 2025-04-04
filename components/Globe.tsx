@@ -21,11 +21,17 @@ interface TooltipState {
   y: number;
 }
 
-interface PopupState {
-  visible: boolean;
-  data: SatelliteData | null;
+interface SatellitePosition {
+  NORAD_CAT_ID: string;
   x: number;
   y: number;
+  z: number;
+}
+
+interface TLE {
+  name: string;
+  tleLine1: string;
+  tleLine2: string;
 }
 
 const Globe: React.FC = () => {
