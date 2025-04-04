@@ -30,19 +30,6 @@ interface TooltipState {
   y: number;
 }
 
-interface SatellitePosition {
-  NORAD_CAT_ID: string;
-  x: number;
-  y: number;
-  z: number;
-}
-
-interface TLE {
-  name: string;
-  tleLine1: string;
-  tleLine2: string;
-}
-
 const Globe: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<THREE.Scene | null>(null);
