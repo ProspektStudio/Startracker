@@ -414,8 +414,10 @@ const Globe: React.FC = () => {
   // Update the fetchSatellitePositions function to ensure it's correctly calling our proxy
   const fetchSatellitePositions = async (satelliteIds: string[]): Promise<SatellitePosition[]> => {
     try {
+      const group = 'stations';
+
       const response = await fetch(
-        `/api/satellites?group=stations`,
+        `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`,
         {
           method: 'GET',
           headers: {
