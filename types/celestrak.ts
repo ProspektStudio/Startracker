@@ -1,0 +1,34 @@
+export interface CelestrakResponse {
+  NORAD_CAT_ID: string;
+  OBJECT_NAME: string;
+  EPOCH: string;
+  MEAN_MOTION: number;
+  ECCENTRICITY: number;
+  INCLINATION: number;
+  RA_OF_ASC_NODE: number;
+  ARG_OF_PERICENTER: number;
+  MEAN_ANOMALY: number;
+  EPHEMERIS_TYPE: number;
+  CLASSIFICATION_TYPE: string;
+  ELEMENT_SET_NO: number;
+  REV_AT_EPOCH: number;
+  BSTAR: number;
+  MEAN_MOTION_DOT: number;
+  MEAN_MOTION_DDOT: number;
+  SEMIMAJOR_AXIS: number;
+  PERIOD: number;
+  APOAPSIS: number;
+  PERIAPSIS: number;
+  OBJECT_TYPE: string;
+  RCS_SIZE: string;
+  COUNTRY_CODE: string;
+  LAUNCH_DATE: string;
+  SITE: string;
+  DECAY_DATE: string | null;
+  DECAYED: number;
+  FILE: number;
+  GP_ID: number;
+  TLE_LINE0: string;
+  TLE_LINE1: string;
+  TLE_LINE2: string;
+}

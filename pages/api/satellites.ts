@@ -1,5 +1,11 @@
+import { NextApiRequest, NextApiResponse } from 'next';
+import { CelestrakResponse } from '../../types/celestrak';
+
 // This is your proxy server endpoint
-export default async function handler(req, res) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<CelestrakResponse[] | { error: string; message?: string }>
+) {
     // Log incoming request
     console.log('Proxy received request for satellites:', req.query.satellites);
 
@@ -25,7 +31,7 @@ export default async function handler(req, res) {
         throw new Error(`Celestrak API error: ${response.statusText}`);
       }
   
-      const data = await response.json();
+      const data: CelestrakResponse[] = await response.json();
       console.log('Received data from Celestrak:', data);
       
       // Add caching headers (cache for 5 seconds)
@@ -38,7 +44,7 @@ export default async function handler(req, res) {
       console.error('Proxy server error:', error);
       res.status(500).json({ 
         error: 'Failed to fetch satellite data',
-        message: error.message 
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
-  }
+}

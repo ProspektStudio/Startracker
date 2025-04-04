@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { feature } from 'topojson-client';
+import { CelestrakResponse } from '../types/celestrak';
 
 interface SatelliteData {
   name: string;
@@ -413,9 +414,6 @@ const Globe: React.FC = () => {
   // Update the fetchSatellitePositions function to ensure it's correctly calling our proxy
   const fetchSatellitePositions = async (satelliteIds: string[]): Promise<SatellitePosition[]> => {
     try {
-      // Log the request for debugging
-      console.log('Fetching satellites:', satelliteIds);
-      
       const response = await fetch(
         `/api/satellites?group=stations`,
         {
@@ -430,7 +428,7 @@ const Globe: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as CelestrakResponse[];
       console.log('Received satellite data:', data); // Debug log
       return data;
     } catch (error) {
