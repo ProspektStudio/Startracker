@@ -272,12 +272,12 @@ const Globe = () => {
     newScene.add(directionalLight);
 
     // Generate satellites
-    const allSatellites = generateSatellites();
-    console.log(`Created ${allSatellites.length} satellites`);
+    // const allSatellites = generateSatellites();
+    // console.log(`Created ${allSatellites.length} satellites`);
 
-    const satelliteMeshes = allSatellites.map(satData => 
-      createSatelliteMesh(newScene, textureLoader, satData)
-    );
+    // const satelliteMeshes = allSatellites.map(satData => 
+    //   createSatelliteMesh(newScene, textureLoader, satData)
+    // );
     
     // Set up OrbitControls
     const newControls = new OrbitControls(newCamera, newRenderer.domElement);
@@ -293,8 +293,8 @@ const Globe = () => {
     setRenderer(newRenderer);
     setGlobe(newGlobe);
     setControls(newControls);
-    setSatellites(satelliteMeshes);
-    satelliteMeshesRef.current = satelliteMeshes;
+    // setSatellites(satelliteMeshes);
+    // satelliteMeshesRef.current = satelliteMeshes;
 
     // Animation loop
     const animate = () => {
@@ -323,10 +323,7 @@ const Globe = () => {
 
     animate();
 
-    // Update positions periodically
-    const updateInterval = setInterval(() => {
-      updateSatellitePositions(satelliteMeshesRef.current);
-    }, 5000); // Update every 5 seconds
+    updateSatellitePositions(satelliteMeshesRef.current);
 
     // Cleanup
     return () => {
@@ -336,11 +333,10 @@ const Globe = () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      clearInterval(updateInterval);
+      // clearInterval(updateInterval);
     };
   }, []);
 
-  // Update the updateSatellitePositions function to use real-time data
   const updateSatellitePositions = async (satelliteMeshes) => {
     try {
       const satelliteIds = satelliteMeshes.map(sat => sat.data.noradId);
@@ -376,7 +372,7 @@ const Globe = () => {
       console.log('Fetching satellites:', satelliteIds);
       
       const response = await fetch(
-        `/api/satellites?satellites=${satelliteIds.join(',')}`,
+        `/api/satellites?group=stations`,
         {
           method: 'GET',
           headers: {

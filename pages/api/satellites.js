@@ -9,14 +9,14 @@ export default async function handler(req, res) {
     
     try {
       // Get satellite IDs from query parameters
-      const { satellites } = req.query;
+      const { group } = req.query;
       
-      if (!satellites) {
-        return res.status(400).json({ error: 'No satellite IDs provided' });
+      if (!group) {
+        return res.status(400).json({ error: 'No group provided' });
       }
   
-      // Test with a single API call first
-      const celestrakUrl = `https://celestrak.org/NORAD/elements/gp.php?CATNR=${satellites}&FORMAT=json`;
+      // Query the "stations" group from Celestrak
+      const celestrakUrl = `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`;
       console.log('Calling Celestrak:', celestrakUrl);
 
       const response = await fetch(celestrakUrl);
