@@ -6,7 +6,7 @@ import { CelestrakResponse } from '../types/celestrak';
 
 interface SatelliteData {
   name: string;
-  noradId: string;
+  noradId: number;
   coordinates?: {
     lat: number;
     long: number;
@@ -116,58 +116,58 @@ const Globe: React.FC = () => {
   ];
 
   // Update the test satellites array to include both orbit and initial coordinates
-  const testSatellites: SatelliteData[] = [
-    { 
-      name: 'ISS (ZARYA)', 
-      noradId: '25544',
-      coordinates: { lat: 51.6415, long: 183.9210 },
-      orbit: {
-        height: ORBIT_HEIGHTS.LEO,
-        inclination: 51.6415 * (Math.PI / 180),
-        phase: 0
-      }
-    },
-    { 
-      name: 'HUBBLE', 
-      noradId: '20580',
-      coordinates: { lat: 28.4699, long: 232.9546 },
-      orbit: {
-        height: ORBIT_HEIGHTS.LEO,
-        inclination: 28.4699 * (Math.PI / 180),
-        phase: Math.PI / 2
-      }
-    },
-    { 
-      name: 'NOAA 19', 
-      noradId: '33591',
-      coordinates: { lat: 99.1691, long: 206.1636 },
-      orbit: {
-        height: ORBIT_HEIGHTS.LEO,
-        inclination: 99.1691 * (Math.PI / 180),
-        phase: Math.PI
-      }
-    },
-    { 
-      name: 'STARLINK-1019', 
-      noradId: '44713',
-      coordinates: { lat: 53.0540, long: 226.3036 },
-      orbit: {
-        height: ORBIT_HEIGHTS.STARLINK,
-        inclination: 53.0540 * (Math.PI / 180),
-        phase: 3 * Math.PI / 2
-      }
-    },
-    { 
-      name: 'GPS IIR-10', 
-      noradId: '28129',
-      coordinates: { lat: 56.4575, long: 161.3485 },
-      orbit: {
-        height: ORBIT_HEIGHTS.MEO,
-        inclination: 56.4575 * (Math.PI / 180),
-        phase: Math.PI / 4
-      }
-    }
-  ];
+  // const testSatellites: SatelliteData[] = [
+  //   { 
+  //     name: 'ISS (ZARYA)', 
+  //     noradId: '25544',
+  //     coordinates: { lat: 51.6415, long: 183.9210 },
+  //     orbit: {
+  //       height: ORBIT_HEIGHTS.LEO,
+  //       inclination: 51.6415 * (Math.PI / 180),
+  //       phase: 0
+  //     }
+  //   },
+  //   { 
+  //     name: 'HUBBLE', 
+  //     noradId: '20580',
+  //     coordinates: { lat: 28.4699, long: 232.9546 },
+  //     orbit: {
+  //       height: ORBIT_HEIGHTS.LEO,
+  //       inclination: 28.4699 * (Math.PI / 180),
+  //       phase: Math.PI / 2
+  //     }
+  //   },
+  //   { 
+  //     name: 'NOAA 19', 
+  //     noradId: '33591',
+  //     coordinates: { lat: 99.1691, long: 206.1636 },
+  //     orbit: {
+  //       height: ORBIT_HEIGHTS.LEO,
+  //       inclination: 99.1691 * (Math.PI / 180),
+  //       phase: Math.PI
+  //     }
+  //   },
+  //   { 
+  //     name: 'STARLINK-1019', 
+  //     noradId: '44713',
+  //     coordinates: { lat: 53.0540, long: 226.3036 },
+  //     orbit: {
+  //       height: ORBIT_HEIGHTS.STARLINK,
+  //       inclination: 53.0540 * (Math.PI / 180),
+  //       phase: 3 * Math.PI / 2
+  //     }
+  //   },
+  //   { 
+  //     name: 'GPS IIR-10', 
+  //     noradId: '28129',
+  //     coordinates: { lat: 56.4575, long: 161.3485 },
+  //     orbit: {
+  //       height: ORBIT_HEIGHTS.MEO,
+  //       inclination: 56.4575 * (Math.PI / 180),
+  //       phase: Math.PI / 4
+  //     }
+  //   }
+  // ];
 
   // Add this helper function to convert lat/long to 3D coordinates
   const latLongToVector3 = (latitude: number, longitude: number, radius: number): THREE.Vector3 => {
@@ -194,78 +194,56 @@ const Globe: React.FC = () => {
     return points;
   };
 
-  // Update the createSatelliteMesh function
-  const createSatelliteMesh = (scene: THREE.Scene, textureLoader: THREE.TextureLoader, satData: SatelliteData): SatelliteMesh => {
-    const satelliteTexture = textureLoader.load('/dot-medium.13d7e8cb.png');
-    
-    const spriteMaterial = new THREE.SpriteMaterial({ 
-      map: satelliteTexture,
-      color: 0xffffff,
-      sizeAttenuation: true
-    });
-    
-    const satelliteSprite = new THREE.Sprite(spriteMaterial);
-    satelliteSprite.scale.set(SATELLITE_SIZE, SATELLITE_SIZE, 1);
-    
-    scene.add(satelliteSprite);
-    
-    return {
-      mesh: satelliteSprite,
-      data: satData,
-      phase: satData.orbit.phase
-    };
-  };
+  // // Generate satellites with more realistic parameters
+  // const generateSatellites = (): SatelliteData[] => {
+  //   const satellites: SatelliteData[] = [
+  //     // ISS - Low Earth Orbit
+  //     { 
+  //       name: 'ISS (ZARYA)', 
+  //       noradId: '25544',
+  //       orbit: {
+  //         height: ORBIT_HEIGHTS.LEO,
+  //         inclination: 51.6415 * (Math.PI / 180),
+  //         phase: 0
+  //       }
+  //     },
 
-  // Generate satellites with more realistic parameters
-  const generateSatellites = (): SatelliteData[] => {
-    const satellites: SatelliteData[] = [
-      // ISS - Low Earth Orbit
-      { 
-        name: 'ISS (ZARYA)', 
-        noradId: '25544',
-        orbit: {
-          height: ORBIT_HEIGHTS.LEO,
-          inclination: 51.6415 * (Math.PI / 180),
-          phase: 0
-        }
-      },
+  //     // Starlink satellites - 550km orbit
+  //     ...Array.from({ length: 60 }, (_, i) => ({
+  //       name: `STARLINK-${1000 + i}`,
+  //       noradId: `44713${i.toString().padStart(2, '0')}`,
+  //       orbit: {
+  //         height: ORBIT_HEIGHTS.STARLINK,
+  //         inclination: 53 * (Math.PI / 180),
+  //         phase: (i / 60) * Math.PI * 2
+  //       }
+  //     })),
 
-      // Starlink satellites - 550km orbit
-      ...Array.from({ length: 60 }, (_, i) => ({
-        name: `STARLINK-${1000 + i}`,
-        noradId: `44713${i.toString().padStart(2, '0')}`,
-        orbit: {
-          height: ORBIT_HEIGHTS.STARLINK,
-          inclination: 53 * (Math.PI / 180),
-          phase: (i / 60) * Math.PI * 2
-        }
-      })),
+  //     // GPS satellites - 20,200km orbit
+  //     ...Array.from({ length: 24 }, (_, i) => ({
+  //       name: `GPS-${i + 1}`,
+  //       noradId: `4014${i.toString().padStart(2, '0')}`,
+  //       orbit: {
+  //         height: ORBIT_HEIGHTS.MEO,
+  //         inclination: 55 * (Math.PI / 180),
+  //         phase: (i / 24) * Math.PI * 2
+  //       }
+  //     })),
 
-      // GPS satellites - 20,200km orbit
-      ...Array.from({ length: 24 }, (_, i) => ({
-        name: `GPS-${i + 1}`,
-        noradId: `4014${i.toString().padStart(2, '0')}`,
-        orbit: {
-          height: ORBIT_HEIGHTS.MEO,
-          inclination: 55 * (Math.PI / 180),
-          phase: (i / 24) * Math.PI * 2
-        }
-      })),
+  //     // Geostationary satellites - 35,786km orbit
+  //     ...Array.from({ length: 15 }, (_, i) => ({
+  //       name: `GEO-${i + 1}`,
+  //       noradId: `3837${i.toString().padStart(2, '0')}`,
+  //       orbit: {
+  //         height: ORBIT_HEIGHTS.GEO,
+  //         inclination: 0,
+  //         phase: (i / 15) * Math.PI * 2
+  //       }
+  //     }))
+  //   ];
 
-      // Geostationary satellites - 35,786km orbit
-      ...Array.from({ length: 15 }, (_, i) => ({
-        name: `GEO-${i + 1}`,
-        noradId: `3837${i.toString().padStart(2, '0')}`,
-        orbit: {
-          height: ORBIT_HEIGHTS.GEO,
-          inclination: 0,
-          phase: (i / 15) * Math.PI * 2
-        }
-      }))
-    ];
-
-    return satellites;
-  };
+  //   return satellites;
+  // };
 
   // Setup Three.js scene
   useEffect(() => {
@@ -369,7 +347,8 @@ const Globe: React.FC = () => {
 
     animate();
 
-    updateSatellitePositions(satelliteMeshesRef.current);
+    createSatellitePositions(newScene, textureLoader);
+    // updateSatellitePositions(satelliteMeshesRef.current);
 
     // Cleanup
     return () => {
@@ -383,36 +362,36 @@ const Globe: React.FC = () => {
     };
   }, []);
 
-  const updateSatellitePositions = async (satelliteMeshes: SatelliteMesh[]) => {
-    try {
-      const satelliteIds = satelliteMeshes.map(sat => sat.data.noradId);
-      const positions = await fetchSatellitePositions(satelliteIds);
+  // const updateSatellitePositions = async (satelliteMeshes: SatelliteMesh[]) => {
+  //   try {
+  //     const satelliteIds = satelliteMeshes.map(sat => sat.data.noradId);
+  //     const positions = await fetchSatellitePositions(satelliteIds);
       
-      satelliteMeshes.forEach(sat => {
-        const satData = positions.find(pos => pos.NORAD_CAT_ID === sat.data.noradId);
+  //     satelliteMeshes.forEach(sat => {
+  //       const satData = positions.find(pos => pos.NORAD_CAT_ID === sat.data.noradId);
         
-        if (!satData) return;
+  //       if (!satData) return;
         
-        // Convert Celestrak coordinates to lat/long
-        const lat = Math.asin(satData.z / Math.sqrt(satData.x * satData.x + satData.y * satData.y + satData.z * satData.z));
-        const long = Math.atan2(satData.y, satData.x);
+  //       // Convert Celestrak coordinates to lat/long
+  //       const lat = satData.INCLINATION;
+  //       const long = satData.RA_OF_ASC_NODE;
         
-        // Update position
-        const newPosition = latLongToVector3(
-          lat * (180 / Math.PI),
-          long * (180 / Math.PI),
-          GLOBE_RADIUS + 0.5
-        );
+  //       // Update position
+  //       const newPosition = latLongToVector3(
+  //         lat * (180 / Math.PI),
+  //         long * (180 / Math.PI),
+  //         GLOBE_RADIUS + 0.5
+  //       );
         
-        sat.mesh.position.copy(newPosition);
-      });
-    } catch (error) {
-      console.error('Error updating satellite positions:', error);
-    }
-  };
+  //       sat.mesh.position.copy(newPosition);
+  //     });
+  //   } catch (error) {
+  //     console.error('Error updating satellite positions:', error);
+  //   }
+  // };
 
   // Update the fetchSatellitePositions function to ensure it's correctly calling our proxy
-  const fetchSatellitePositions = async (satelliteIds: string[]): Promise<SatellitePosition[]> => {
+  const fetchSatellitePositions = async (): Promise<CelestrakResponse[]> => {
     try {
       const group = 'stations';
 
@@ -437,6 +416,89 @@ const Globe: React.FC = () => {
       console.error('Error fetching satellite positions:', error);
       return [];
     }
+  };
+
+  const createSatellitePositions = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
+    try {
+      const positions = await fetchSatellitePositions();
+      const satelliteMeshes: SatelliteMesh[] = [];
+      
+      positions.forEach(satData => {
+        if (!satData.NORAD_CAT_ID) return;
+        
+        // Calculate orbital parameters
+        // Semi-major axis in Earth radii (derived from mean motion)
+        const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(satData.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
+        
+        // Convert orbital elements to radians where needed
+        const inclination = satData.INCLINATION * (Math.PI / 180);
+        const raan = satData.RA_OF_ASC_NODE * (Math.PI / 180);
+        const argPerigee = satData.ARG_OF_PERICENTER * (Math.PI / 180);
+        const meanAnomaly = satData.MEAN_ANOMALY * (Math.PI / 180);
+        
+        // Create satellite data object
+        const satelliteData: SatelliteData = {
+          name: satData.OBJECT_NAME,
+          noradId: satData.NORAD_CAT_ID,
+          orbit: {
+            height: semiMajorAxis * (1 - satData.ECCENTRICITY) - 1, // Perigee height in Earth radii
+            inclination: inclination,
+            phase: meanAnomaly // Use mean anomaly as initial phase
+          }
+        };
+        
+        // Create and add the satellite mesh
+        const satMesh = createSatelliteMesh(scene, textureLoader, satelliteData);
+        
+        // Calculate initial position
+        const radius = GLOBE_RADIUS * (1 + satelliteData.orbit.height);
+        const x = Math.cos(meanAnomaly) * radius;
+        const y = Math.sin(meanAnomaly) * radius * Math.sin(inclination);
+        const z = Math.sin(meanAnomaly) * radius * Math.cos(inclination);
+        
+        // Apply coordinate transformations for RAAN and argument of perigee
+        const position = new THREE.Vector3(x, y, z);
+        
+        // Rotate by argument of perigee
+        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), argPerigee);
+        
+        // Rotate by RAAN
+        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), raan);
+        
+        satMesh.mesh.position.copy(position);
+        satelliteMeshes.push(satMesh);
+      });
+      
+      // Store the satellite meshes in the ref for animation updates
+      satelliteMeshesRef.current = satelliteMeshes;
+      
+      return satelliteMeshes;
+    } catch (error) {
+      console.error('Error creating satellite positions:', error);
+      return [];
+    }
+  };
+
+  // Update the createSatelliteMesh function
+  const createSatelliteMesh = (scene: THREE.Scene, textureLoader: THREE.TextureLoader, satData: SatelliteData): SatelliteMesh => {
+    const satelliteTexture = textureLoader.load('/dot-medium.13d7e8cb.png');
+    
+    const spriteMaterial = new THREE.SpriteMaterial({ 
+      map: satelliteTexture,
+      color: 0xffffff,
+      sizeAttenuation: true
+    });
+    
+    const satelliteSprite = new THREE.Sprite(spriteMaterial);
+    satelliteSprite.scale.set(SATELLITE_SIZE, SATELLITE_SIZE, 1);
+    
+    scene.add(satelliteSprite);
+    
+    return {
+      mesh: satelliteSprite,
+      data: satData,
+      phase: satData.orbit.phase
+    };
   };
 
   return (
