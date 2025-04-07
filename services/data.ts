@@ -132,4 +132,6 @@ const getSatelliteData = async (): Promise<CelestrakResponse[]> => {
   return fetchSatellitePositions();
 };
 
+export type { CelestrakResponse };
+
 export default getSatelliteData;
