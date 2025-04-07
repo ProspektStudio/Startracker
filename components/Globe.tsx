@@ -311,6 +311,10 @@ const Globe: React.FC = () => {
     newControls.minDistance = 7;
     newControls.maxDistance = 20;
 
+    // Initialize raycaster and mouse
+    raycasterRef.current = new THREE.Raycaster();
+    mouseRef.current = new THREE.Vector2();
+
     // Store everything in state/refs
     setScene(newScene);
     setCamera(newCamera);
@@ -320,13 +324,52 @@ const Globe: React.FC = () => {
     // setSatellites(satelliteMeshes);
     // satelliteMeshesRef.current = satelliteMeshes;
 
+    // Add mouse move handler for tooltip
+    const onMouseMove = (event: { clientX: number; clientY: number; }) => {
+      if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
+
+      // Calculate mouse position in normalized device coordinates (-1 to +1)
+      const rect = containerRef.current.getBoundingClientRect();
+      mouseRef.current.x = ((event.clientX - rect.left) / containerRef.current.clientWidth) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / containerRef.current.clientHeight) * 2 + 1;
+
+      // Update the picking ray with the camera and mouse position
+      raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
+
+      // Calculate objects intersecting the picking ray
+      const intersects = raycasterRef.current.intersectObjects(newScene.children, true);
+
+      // Find if we're hovering over a satellite
+      const satelliteIntersect = intersects.find(intersect =>
+          intersect.object instanceof THREE.Sprite
+      );
+
+      if (satelliteIntersect) {
+        const satelliteMesh = satelliteIntersect.object;
+        const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
+
+        if (satelliteData) {
+          setTooltip({
+            visible: true,
+            text: satelliteData.data.name,
+            x: event.clientX - rect.left + 10,
+            y: event.clientY - rect.top + 10
+          });
+        }
+      } else {
+        setTooltip({ visible: false, text: '', x: 0, y: 0 });
+      }
+    };
+
+    containerRef.current.addEventListener('mousemove', onMouseMove);
+
     // Animation loop
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
       
       satelliteMeshesRef.current.forEach(sat => {
         // Kepler's Third Law: orbital period is proportional to semi-major axis^(3/2)
-        const orbitalSpeed = 0.001 * Math.pow(sat.data.orbit.height, -1.5);
+        const orbitalSpeed = 0.000001 * Math.pow(sat.data.orbit.height, -1.5);
         sat.phase = (sat.phase + orbitalSpeed) % (Math.PI * 2);
         
         const radius = GLOBE_RADIUS * (1 + sat.data.orbit.height);
