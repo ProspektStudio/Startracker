@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { CelestrakResponse } from '../types/celestrak';
+import getSatelliteData from '@/services/data';
 
 interface SatelliteData {
   name: string;
@@ -116,8 +116,8 @@ const Globe: React.FC = () => {
     directionalLight.position.set(5, 5, 5);
     newScene.add(directionalLight);
 
-    // Generate satellites
-    generateSatellites(newScene, textureLoader)
+    // Create satellites
+    createSatellites(newScene, textureLoader)
         .then(allSatellites => console.log(`Created ${allSatellites.length} satellites`));
 
     // Set up OrbitControls
@@ -216,39 +216,12 @@ const Globe: React.FC = () => {
     };
   }, []);
 
-  const fetchSatellitePositions = async (): Promise<CelestrakResponse[]> => {
+  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
     try {
-      const group = 'stations';
-
-      const response = await fetch(
-        `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json() as CelestrakResponse[];
-      console.log('Received satellite data:', data); // Debug log
-      return data;
-    } catch (error) {
-      console.error('Error fetching satellite positions:', error);
-      return [];
-    }
-  };
-
-  const generateSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
-    try {
-      const positions = await fetchSatellitePositions();
+      const satelliteData = await getSatelliteData();
       const satelliteMeshes: SatelliteMesh[] = [];
       
-      positions.forEach(satData => {
+      satelliteData.forEach(satData => {
         if (!satData.NORAD_CAT_ID) return;
         
         // Calculate orbital parameters
