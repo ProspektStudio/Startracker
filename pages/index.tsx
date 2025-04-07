@@ -1,14 +1,38 @@
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 
 // Dynamically import the Globe component with no SSR to avoid server-side rendering issues
 const Globe = dynamic(() => import('../components/Globe'), { ssr: false });
 
+interface LightingState {
+  ambientIntensity: number;
+  ambientColor: string;
+  directionalIntensity: number;
+  directionalColor: string;
+  directionalPosition: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  hemisphereIntensity: number;
+  hemisphereColorTop: string;
+  hemisphereColorBottom: string;
+}
+
+interface Window {
+  adjustLighting?: (lighting: Omit<LightingState, 'ambientColor' | 'directionalColor' | 'hemisphereColorTop' | 'hemisphereColorBottom'> & {
+    ambientColor: number;
+    directionalColor: number;
+    hemisphereColorTop: number;
+    hemisphereColorBottom: number;
+  }) => void;
+}
+
 export default function Home() {
   // Lighting control panel state
   const [showControls, setShowControls] = useState(false);
-  const [lighting, setLighting] = useState({
+  const [lighting, setLighting] = useState<LightingState>({
     ambientIntensity: 0.3,
     ambientColor: '#404040',
     directionalIntensity: 1.0,
@@ -20,18 +44,18 @@ export default function Home() {
   });
 
   // Helper to convert hex to number
-  const hexToNumber = (hex) => parseInt(hex.replace('#', '0x'));
+  const hexToNumber = (hex: string): number => parseInt(hex.replace('#', '0x'));
 
   // Update lighting in the Globe component
   const updateLighting = () => {
     if (typeof window !== 'undefined' && window.adjustLighting) {
       window.adjustLighting({
-        ambientIntensity: parseFloat(lighting.ambientIntensity),
+        ambientIntensity: parseFloat(lighting.ambientIntensity.toString()),
         ambientColor: hexToNumber(lighting.ambientColor),
-        directionalIntensity: parseFloat(lighting.directionalIntensity),
+        directionalIntensity: parseFloat(lighting.directionalIntensity.toString()),
         directionalColor: hexToNumber(lighting.directionalColor),
         directionalPosition: lighting.directionalPosition,
-        hemisphereIntensity: parseFloat(lighting.hemisphereIntensity),
+        hemisphereIntensity: parseFloat(lighting.hemisphereIntensity.toString()),
         hemisphereColorTop: hexToNumber(lighting.hemisphereColorTop),
         hemisphereColorBottom: hexToNumber(lighting.hemisphereColorBottom)
       });
@@ -39,11 +63,11 @@ export default function Home() {
   };
 
   // Handle input changes
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
     if (name.startsWith('directionalPosition.')) {
-      const axis = name.split('.')[1];
+      const axis = name.split('.')[1] as keyof typeof lighting.directionalPosition;
       setLighting({
         ...lighting,
         directionalPosition: {
