@@ -2,20 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/data';
-
-interface SatelliteData {
-  name: string;
-  noradId: number;
-  coordinates?: {
-    lat: number;
-    long: number;
-  };
-  orbit: {
-    height: number;
-    inclination: number;
-    phase: number;
-  };
-}
+import { SatelliteData } from '@/services/types';
+import SidePanel from './SidePanel';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
@@ -30,28 +18,15 @@ interface TooltipState {
   y: number;
 }
 
-interface SatellitePosition {
-  NORAD_CAT_ID: string;
-  x: number;
-  y: number;
-  z: number;
-}
-
-interface TLE {
-  name: string;
-  tleLine1: string;
-  tleLine2: string;
-}
-
 const Globe: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<THREE.Scene | null>(null);
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
   const [globe, setGlobe] = useState<THREE.Mesh | null>(null);
-  const [satellites, setSatellites] = useState<SatelliteMesh[]>([]);
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
+  const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
@@ -242,7 +217,8 @@ const Globe: React.FC = () => {
             height: semiMajorAxis * (1 - satData.ECCENTRICITY) - 1, // Perigee height in Earth radii
             inclination: inclination,
             phase: meanAnomaly // Use mean anomaly as initial phase
-          }
+          },
+          rawData: satData
         };
         
         // Create and add the satellite mesh
@@ -269,6 +245,8 @@ const Globe: React.FC = () => {
       
       // Store the satellite meshes in the ref for animation updates
       satelliteMeshesRef.current = satelliteMeshes;
+      
+      setSatellites(satelliteMeshes.map(sat => sat.data));
       
       return satelliteMeshes;
     } catch (error) {
@@ -320,6 +298,7 @@ const Globe: React.FC = () => {
           {tooltip.text}
         </div>
       )}
+      <SidePanel satellites={satellites} />
     </div>
   );
 };
