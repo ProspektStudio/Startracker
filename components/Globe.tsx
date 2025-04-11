@@ -21,6 +21,7 @@ interface TooltipState {
   y: number;
 }
 
+<<<<<<< HEAD
 interface SatellitePosition {
   NORAD_CAT_ID: string;
   x: number;
@@ -32,6 +33,13 @@ interface TLE {
   name: string;
   tleLine1: string;
   tleLine2: string;
+=======
+interface PopupState {
+  visible: boolean;
+  data: SatelliteData | null;
+  x: number;
+  y: number;
+>>>>>>> 828e6b3 (Enhance Globe component with satellite interaction and FPS counter)
 }
 
 const Globe: React.FC = () => {
