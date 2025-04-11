@@ -4,16 +4,26 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/data';
 import { SatelliteData } from '@/services/types';
 import SidePanel from './SidePanel';
+import FPSCounter from './FPSCounter';
+import SatellitePopup from './SatellitePopup';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
   data: SatelliteData;
   phase: number;
+  material: THREE.SpriteMaterial;
 }
 
 interface TooltipState {
   visible: boolean;
   text: string;
+  x: number;
+  y: number;
+}
+
+interface PopupState {
+  visible: boolean;
+  data: SatelliteData | null;
   x: number;
   y: number;
 }
@@ -26,12 +36,16 @@ const Globe: React.FC = () => {
   const [globe, setGlobe] = useState<THREE.Mesh | null>(null);
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
+  const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
   const lastUpdateRef = useRef<number | null>(null);
   const satelliteMeshesRef = useRef<SatelliteMesh[]>([]);
+  const [fps, setFps] = useState<number>(0);
+  const frameTimesRef = useRef<number[]>([]);
+  const lastFrameTimeRef = useRef<number>(performance.now());
 
   // Constants
   const GLOBE_RADIUS = 5;
@@ -40,6 +54,10 @@ const Globe: React.FC = () => {
 
   // Constants for realistic orbital heights (in Earth radii)
   const EARTH_RADIUS = 6371;
+
+  // Add initial camera position reference
+  const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
+  const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
 
   // Setup Three.js scene
   useEffect(() => {
@@ -67,6 +85,10 @@ const Globe: React.FC = () => {
 
     // Position camera
     newCamera.position.z = 12;
+    
+    // Store initial camera position and target
+    initialCameraPosition.current = newCamera.position.clone();
+    initialControlsTarget.current = new THREE.Vector3(0, 0, 0);
 
     // Create Earth
     const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
@@ -114,36 +136,27 @@ const Globe: React.FC = () => {
     setGlobe(newGlobe);
     setControls(newControls);
 
-    // Add mouse move handler for tooltip
-    const onMouseMove = (event: { clientX: number; clientY: number; }) => {
+    // Add hover handler for tooltip
+    const onMouseMove = (event: MouseEvent) => {
       if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
 
-      // Calculate mouse position in normalized device coordinates (-1 to +1)
-      const rect = containerRef.current.getBoundingClientRect();
-      mouseRef.current.x = ((event.clientX - rect.left) / containerRef.current.clientWidth) * 2 - 1;
-      mouseRef.current.y = -((event.clientY - rect.top) / containerRef.current.clientHeight) * 2 + 1;
+      const rect = newRenderer.domElement.getBoundingClientRect();
+      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-      // Update the picking ray with the camera and mouse position
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
+      const intersects = raycasterRef.current.intersectObjects(satelliteMeshesRef.current.map(sat => sat.mesh));
 
-      // Calculate objects intersecting the picking ray
-      const intersects = raycasterRef.current.intersectObjects(newScene.children, true);
-
-      // Find if we're hovering over a satellite
-      const satelliteIntersect = intersects.find(intersect =>
-          intersect.object instanceof THREE.Sprite
-      );
-
-      if (satelliteIntersect) {
-        const satelliteMesh = satelliteIntersect.object;
+      if (intersects.length > 0) {
+        const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
         if (satelliteData) {
           setTooltip({
             visible: true,
             text: satelliteData.data.name,
-            x: event.clientX - rect.left + 10,
-            y: event.clientY - rect.top + 10
+            x: event.clientX,
+            y: event.clientY - 10
           });
         }
       } else {
@@ -151,10 +164,127 @@ const Globe: React.FC = () => {
       }
     };
 
-    containerRef.current.addEventListener('mousemove', onMouseMove);
+    // Add click handler for satellites
+    const onClick = (event: MouseEvent) => {
+      if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
+
+      const rect = newRenderer.domElement.getBoundingClientRect();
+      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      // Reset all satellites to white first
+      satelliteMeshesRef.current.forEach(sat => {
+        sat.mesh.material.color.set(0xffffff);
+      });
+
+      // Set up raycaster
+      raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
+      const intersects = raycasterRef.current.intersectObjects(newScene.children, true);
+
+      // Find any intersected Sprite (satellite)
+      const satelliteIntersect = intersects.find(obj => obj.object instanceof THREE.Sprite);
+
+      if (satelliteIntersect) {
+        const clickedSprite = satelliteIntersect.object as THREE.Sprite;
+        const satelliteData = satelliteMeshesRef.current.find(
+          sat => sat.mesh === clickedSprite
+        );
+
+        if (satelliteData) {
+          // Change color to blue
+          console.log('clickedSprite', clickedSprite);
+          clickedSprite.material.color.set(0x00a2ff);
+
+          // Get the satellite's position for camera movement
+          const satellitePosition = new THREE.Vector3();
+          clickedSprite.getWorldPosition(satellitePosition);
+
+          // Calculate the target camera position
+          const direction = satellitePosition.clone().normalize();
+          const distance = 8;
+          const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
+
+          // Animate camera movement
+          if (newControls) {
+            // Disable controls during animation
+            newControls.enabled = false;
+
+            // Store initial camera position and target
+            const startPosition = newCamera.position.clone();
+            const startTarget = newControls.target.clone();
+            const endTarget = satellitePosition;
+
+            // Animation duration in milliseconds
+            const duration = 1000;
+            const startTime = Date.now();
+
+            const animateCamera = () => {
+              const elapsed = Date.now() - startTime;
+              const progress = Math.min(elapsed / duration, 1);
+
+              // Ease function (cubic ease-out)
+              const ease = 1 - Math.pow(1 - progress, 3);
+
+              // Interpolate camera position
+              newCamera.position.lerpVectors(startPosition, targetPosition, ease);
+
+              // Interpolate control target
+              newControls.target.lerpVectors(startTarget, endTarget, ease);
+              newControls.update();
+
+              if (progress < 1) {
+                requestAnimationFrame(animateCamera);
+              } else {
+                // Re-enable controls after animation
+                newControls.enabled = true;
+              }
+            };
+
+            animateCamera();
+          }
+
+          // Update popup position
+          const vector = new THREE.Vector3();
+          clickedSprite.getWorldPosition(vector);
+          vector.project(newCamera);
+
+          const x = (vector.x + 1) * rect.width / 2 + rect.left;
+          const y = (-vector.y + 1) * rect.height / 2 + rect.top;
+
+          setPopup({
+            visible: true,
+            data: satelliteData.data,
+            x: x,
+            y: y
+          });
+        }
+      } else {
+        setPopup({ visible: false, data: null, x: 0, y: 0 });
+      }
+    };
+
+    newRenderer.domElement.addEventListener('mousemove', onMouseMove);
+    newRenderer.domElement.addEventListener('click', onClick);
 
     // Animation loop
     const animate = () => {
+      const now = performance.now();
+      
+      // Calculate FPS
+      const deltaTime = now - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = now;
+      
+      frameTimesRef.current.push(deltaTime);
+      if (frameTimesRef.current.length > 60) {
+        frameTimesRef.current.shift();
+      }
+      
+      // Calculate average FPS over the last 60 frames
+      const averageDeltaTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+      const currentFps = Math.round(1000 / averageDeltaTime);
+      
+      setFps(currentFps);
+
       animationRef.current = requestAnimationFrame(animate);
       
       satelliteMeshesRef.current.forEach(sat => {
@@ -182,6 +312,10 @@ const Globe: React.FC = () => {
 
     // Cleanup
     return () => {
+      if (newRenderer.domElement) {
+        newRenderer.domElement.removeEventListener('mousemove', onMouseMove);
+        newRenderer.domElement.removeEventListener('click', onClick);
+      }
       if (containerRef.current && newRenderer) {
         containerRef.current.removeChild(newRenderer.domElement);
       }
@@ -273,13 +407,116 @@ const Globe: React.FC = () => {
     return {
       mesh: satelliteSprite,
       data: satData,
-      phase: satData.orbit.phase
+      phase: satData.orbit.phase,
+      material: spriteMaterial
     };
+  };
+
+  // Add reset camera function
+  const resetCamera = () => {
+    if (!camera || !controls || !initialCameraPosition.current || !initialControlsTarget.current) return;
+
+    // Reset all satellites to white
+    satelliteMeshesRef.current.forEach(sat => {
+      sat.material.color.setHex(0xffffff);
+    });
+
+    // Disable controls during animation
+    controls.enabled = false;
+
+    // Store current positions
+    const startPosition = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const endPosition = initialCameraPosition.current;
+    const endTarget = initialControlsTarget.current;
+
+    // Animation duration in milliseconds
+    const duration = 1000;
+    const startTime = Date.now();
+
+    const animateReset = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease function (cubic ease-out)
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      // Interpolate camera position
+      camera.position.lerpVectors(startPosition, endPosition, ease);
+
+      // Interpolate control target
+      controls.target.lerpVectors(startTarget, endTarget, ease);
+      controls.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateReset);
+      } else {
+        // Re-enable controls after animation
+        controls.enabled = true;
+        // Reset popup
+        setPopup({ visible: false, data: null, x: 0, y: 0 });
+      }
+    };
+
+    animateReset();
   };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        left: '20px',
+        display: 'flex',
+        gap: '10px',
+        zIndex: 1000,
+      }}>
+        {/* Center Earth Button */}
+        <button
+          onClick={resetCamera}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'background-color 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          }}
+        >
+          <svg 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Center Earth
+        </button>
+
+        {/* FPS Counter */}
+        <FPSCounter fps={fps} />
+      </div>
+
       {tooltip.visible && (
         <div
           style={{
@@ -292,11 +529,20 @@ const Globe: React.FC = () => {
             borderRadius: '4px',
             fontSize: '14px',
             pointerEvents: 'none',
-            zIndex: 1000
+            zIndex: 1000,
+            transform: 'translate(-50%, -100%)'
           }}
         >
           {tooltip.text}
         </div>
+      )}
+      
+      {popup.visible && popup.data && (
+        <SatellitePopup
+          data={popup.data}
+          x={popup.x}
+          y={popup.y}
+        />
       )}
       <SidePanel satellites={satellites} />
     </div>
