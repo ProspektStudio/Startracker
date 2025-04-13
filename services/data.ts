@@ -1,3 +1,5 @@
+import Dexie, { Table } from 'dexie';
+
 interface CelestrakResponse {
   NORAD_CAT_ID: number;
   OBJECT_ID: string;
@@ -19,56 +21,76 @@ interface CelestrakResponse {
   fetchTime: Date;
 }
 
-// Initialize IndexedDB
-const initDB = async () => {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('SatelliteDB', 1);
+interface SatelliteGroupPair {
+  id: string;
+  group: string;
+  NORAD_CAT_ID: number;
+}
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+class SatelliteDB extends Dexie {
+  satellites!: Table<CelestrakResponse, number>;
+  satellitesByGroup!: Table<SatelliteGroupPair, string>;
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains('satellites')) {
-        db.createObjectStore('satellites', { keyPath: 'NORAD_CAT_ID' });
-      }
-    };
-  });
-};
-
-// Store data in IndexedDB
-const storeSatelliteData = async (data: CelestrakResponse[]) => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction(['satellites'], 'readwrite');
-    const store = transaction.objectStore('satellites');
-
-    // Clear existing data
-    await new Promise<void>((resolve, reject) => {
-      const clearRequest = store.clear();
-      clearRequest.onerror = () => reject(clearRequest.error);
-      clearRequest.onsuccess = () => resolve();
+  constructor() {
+    super('SatelliteDB');
+    this.version(2).stores({
+      satellites: 'NORAD_CAT_ID',
+      satellitesByGroup: 'id, group'
     });
+  }
+}
 
-    // Store new data
-    for (const satellite of data) {
-      await new Promise<void>((resolve, reject) => {
-        const request = store.put(satellite);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve();
-      });
-    }
+const db = new SatelliteDB();
 
-    console.log('Satellite data stored in IndexedDB');
+const storeSatelliteData = async (data: CelestrakResponse[], group: string) => {
+  try {
+    await db.transaction('rw', db.satellites, db.satellitesByGroup, async () => {
+      await db.satellites.bulkPut(data);
+
+      const groupEntries: SatelliteGroupPair[] = data.map((sat, index) => ({
+        id: `${group}-${sat.NORAD_CAT_ID}`,
+        group: group,
+        NORAD_CAT_ID: sat.NORAD_CAT_ID
+      }));
+      await db.satellitesByGroup.bulkPut(groupEntries);
+    });
+    console.log('Satellite data and group associations stored using Dexie');
   } catch (error) {
-    console.error('Error storing satellite data in IndexedDB:', error);
+    console.error('Error storing satellite data using Dexie:', error);
   }
 };
 
-const fetchSatellitePositions = async (): Promise<CelestrakResponse[]> => {
+export const getSatellitesByGroup = async (group: string): Promise<CelestrakResponse[]> => {
   try {
-    const group = 'stations';
+    const groupEntries = await db.satellitesByGroup
+      .where('group')
+      .equals(group)
+      .toArray();
+    
+    const noradIds = groupEntries.map(entry => entry.NORAD_CAT_ID);
+    const satellites = await db.satellites
+      .where('NORAD_CAT_ID')
+      .anyOf(noradIds)
+      .toArray();
+    
+    return satellites;
+  } catch (error) {
+    console.error('Error retrieving satellites by group:', error);
+    return [];
+  }
+};
 
+export const getSatelliteDataFromDB = async (group: string): Promise<CelestrakResponse[]> => {
+  try {
+    return await getSatellitesByGroup(group);
+  } catch (error) {
+    console.error('Error retrieving satellite data using Dexie:', error);
+    return [];
+  }
+};
+
+const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse[]> => {
+  try {
     const response = await fetch(
       `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`,
       {
@@ -86,11 +108,10 @@ const fetchSatellitePositions = async (): Promise<CelestrakResponse[]> => {
     const data = await response.json() as CelestrakResponse[];
     const fetchTime = new Date();
     data.forEach(sat => sat.fetchTime = fetchTime);
-    console.log('Received satellite data:', data); // Debug log
-    
-    // Store the data in IndexedDB
-    await storeSatelliteData(data);
-    
+    console.log('Received satellite data:', data);
+
+    await storeSatelliteData(data, group);
+
     return data;
   } catch (error) {
     console.error('Error fetching satellite positions:', error);
@@ -98,38 +119,26 @@ const fetchSatellitePositions = async (): Promise<CelestrakResponse[]> => {
   }
 };
 
-// Function to retrieve data from IndexedDB
-export const getSatelliteDataFromDB = async (): Promise<CelestrakResponse[]> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction(['satellites'], 'readonly');
-    const store = transaction.objectStore('satellites');
+const getSatelliteData = async (group: string = 'stations'): Promise<CelestrakResponse[]> => {
+  // First try to get data from Dexie/IndexedDB
+  const cachedData = await getSatelliteDataFromDB(group);
 
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  } catch (error) {
-    console.error('Error retrieving satellite data from IndexedDB:', error);
-    return [];
-  }
-};
+  const oldestFetchTime = cachedData.length > 0
+    ? cachedData.reduce((min, sat) => Math.min(min, sat.fetchTime.getTime()), Infinity)
+    : null;
+  const oneHourAgo = Date.now() - 1 * 60 * 60 * 1000;
 
-// Example usage
-const getSatelliteData = async (): Promise<CelestrakResponse[]> => {
-  // First try to get data from IndexedDB
-  const cachedData = await getSatelliteDataFromDB();
-  const lastFetchTime = cachedData.length > 0 ? Math.min(...cachedData.map(sat => sat.fetchTime.getTime())) : null;
-  const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
-
-  if (lastFetchTime && lastFetchTime > oneHourAgo.getTime()) {
-    console.log('Retrieved satellite data from IndexedDB');
+  if (oldestFetchTime && oldestFetchTime > oneHourAgo) {
+    console.log('Retrieved fresh satellite data from Dexie/IndexedDB');
     return cachedData;
+  } else if (oldestFetchTime) {
+    console.log('Cached data is too old, fetching new data.');
+  } else {
+    console.log('No cached data found, fetching new data.');
   }
-  
-  // If no cached data, fetch from API
-  return fetchSatellitePositions();
+
+  // If no fresh cached data, fetch from API
+  return fetchSatellitePositions(group);
 };
 
 export type { CelestrakResponse };
