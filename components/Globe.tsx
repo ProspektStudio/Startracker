@@ -370,11 +370,9 @@ const Globe: React.FC = () => {
           const distance = 8;
           const direction = satellitePosition.clone().normalize();
           const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
-          console.log('Target camera position:', targetPosition.toArray());
 
           // Animate camera movement
           if (newControls) {
-            console.log('Starting camera animation');
             // Disable controls during animation
             newControls.enabled = false;
 
@@ -404,7 +402,6 @@ const Globe: React.FC = () => {
               if (progress < 1) {
                 requestAnimationFrame(animateCamera);
               } else {
-                console.log('Camera animation complete, preparing popup');
                 // Re-enable controls after animation
                 newControls.enabled = true;
                 
@@ -567,7 +564,6 @@ const Globe: React.FC = () => {
 
   const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
     try {
-      console.log('Starting satellite creation');
       const satelliteData = await getSatelliteData();
       
       const satelliteMeshes: SatelliteMesh[] = [];
