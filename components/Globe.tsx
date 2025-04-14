@@ -23,7 +23,6 @@ interface TooltipState {
   y: number;
 }
 
-<<<<<<< HEAD
 interface SatellitePosition {
   NORAD_CAT_ID: string;
   x: number;
@@ -41,7 +40,27 @@ interface PopupState {
   data: SatelliteData | null;
   x: number;
   y: number;
->>>>>>> 828e6b3 (Enhance Globe component with satellite interaction and FPS counter)
+}
+
+interface CelestrakResponse {
+  NORAD_CAT_ID: number;
+  OBJECT_ID: string;
+  OBJECT_NAME: string;
+  EPOCH: string;
+  MEAN_MOTION: number;
+  ECCENTRICITY: number;
+  INCLINATION: number;
+  RA_OF_ASC_NODE: number;
+  ARG_OF_PERICENTER: number;
+  MEAN_ANOMALY: number;
+  EPHEMERIS_TYPE: number;
+  CLASSIFICATION_TYPE: string;
+  ELEMENT_SET_NO: number;
+  REV_AT_EPOCH: number;
+  BSTAR: number;
+  MEAN_MOTION_DOT: number;
+  MEAN_MOTION_DDOT: number;
+  fetchTime: Date;
 }
 
 interface PopupState {
@@ -354,9 +373,11 @@ const Globe: React.FC = () => {
           const distance = 8;
           const direction = satellitePosition.clone().normalize();
           const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
+          console.log('Target camera position:', targetPosition.toArray());
 
           // Animate camera movement
           if (newControls) {
+            console.log('Starting camera animation');
             // Disable controls during animation
             newControls.enabled = false;
 
@@ -386,6 +407,7 @@ const Globe: React.FC = () => {
               if (progress < 1) {
                 requestAnimationFrame(animateCamera);
               } else {
+                console.log('Camera animation complete, preparing popup');
                 // Re-enable controls after animation
                 newControls.enabled = true;
                 
