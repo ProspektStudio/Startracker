@@ -130,7 +130,6 @@ const Globe: React.FC = () => {
       newRenderer.setSize(width, height);
       newCamera.aspect = width / height;
       newCamera.updateProjectionMatrix();
-      console.log('Renderer size updated:', { width, height });
     };
 
     // Initial size setup
@@ -224,36 +223,18 @@ const Globe: React.FC = () => {
 
     const handleClick = (event: MouseEvent) => {
       if (!raycasterRef.current || !newCamera || !newRenderer || !newControls) {
-        console.log('Missing required refs:', {
-          hasRaycaster: !!raycasterRef.current,
-          hasCamera: !!newCamera,
-          hasRenderer: !!newRenderer,
-          hasControls: !!newControls
-        });
         return;
       }
 
       // Update mouse position
       const rect = newRenderer.domElement.getBoundingClientRect();
-      console.log('Renderer dimensions:', {
-        width: rect.width,
-        height: rect.height,
-        left: rect.left,
-        top: rect.top,
-        clientWidth: newRenderer.domElement.clientWidth,
-        clientHeight: newRenderer.domElement.clientHeight,
-        offsetWidth: newRenderer.domElement.offsetWidth,
-        offsetHeight: newRenderer.domElement.offsetHeight
-      });
 
       if (!mouseRef.current) {
-        console.log('Mouse ref is null');
         return;
       }
 
       // Check for valid dimensions
       if (rect.width === 0 || rect.height === 0) {
-        console.log('Invalid renderer dimensions:', rect);
         return;
       }
       
@@ -263,71 +244,24 @@ const Globe: React.FC = () => {
 
       // Check for valid coordinates
       if (!isFinite(x) || !isFinite(y)) {
-        console.log('Invalid mouse coordinates:', { x, y });
         return;
       }
 
       mouseRef.current.x = x;
       mouseRef.current.y = y;
 
-      console.log('Mouse position:', {
-        x: mouseRef.current.x,
-        y: mouseRef.current.y,
-        clientX: event.clientX,
-        clientY: event.clientY,
-        rect: {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height
-        }
-      });
-
       // Set up raycaster
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
-      console.log('Raycaster setup:', {
-        origin: raycasterRef.current.ray.origin.toArray(),
-        direction: raycasterRef.current.ray.direction.toArray()
-      });
 
       // Get all satellite meshes
       const satelliteMeshes = satelliteMeshesRef.current.map(sat => sat.mesh);
-      console.log(`Checking intersections with ${satelliteMeshes.length} satellite meshes`);
 
       const intersects = raycasterRef.current.intersectObjects(satelliteMeshes, true);
-      console.log('Total intersections found:', intersects.length);
       
-      // Log all intersections with detailed satellite information
-      console.log('All intersections:');
-      intersects.forEach((intersect, index) => {
-        if (intersect.object instanceof THREE.Sprite) {
-          const sprite = intersect.object as THREE.Sprite;
-          const satData = satelliteMeshesRef.current.find(sat => sat.mesh === sprite);
-          if (satData) {
-            console.log(`Intersection ${index + 1}:`, {
-              objectType: 'Sprite',
-              objectName: satData.data.name,
-              noradId: satData.data.noradId,
-              distance: intersect.distance,
-              position: satData.mesh.position.toArray()
-            });
-          }
-        } else {
-          console.log(`Intersection ${index + 1}:`, {
-            objectType: intersect.object.type,
-            objectName: intersect.object.name,
-            distance: intersect.distance
-          });
-        }
-      });
-
       // Find any intersected Sprite (satellite)
       const satelliteIntersects = intersects.filter(obj => obj.object instanceof THREE.Sprite);
-      console.log('Found satellite intersections:', satelliteIntersects.length);
       
       if (satelliteIntersects.length > 0) {
-        console.log('Satellite clicked - starting popup process');
-        // Get the first intersected sprite
         const clickedSprite = satelliteIntersects[0].object as THREE.Sprite;
         const satelliteData = satelliteMeshesRef.current.find(
           sat => sat.mesh === clickedSprite
@@ -348,27 +282,14 @@ const Globe: React.FC = () => {
             lineMaterial.opacity = 0.3;
           }
 
-          console.log('Found matching satellite data:', {
-            name: satelliteData.data.name,
-            noradId: satelliteData.data.noradId
-          });
-
           // Get the satellite's position for camera movement
           const satellitePosition = new THREE.Vector3();
           clickedSprite.getWorldPosition(satellitePosition);
-          console.log('Satellite world position:', satellitePosition.toArray());
 
           // Create orbit line
           const orbitPoints = createOrbitLine(satelliteData.data);
-          console.log('Orbit points created:', {
-            pointCount: orbitPoints.length,
-            firstPoint: orbitPoints[0].toArray(),
-            lastPoint: orbitPoints[orbitPoints.length - 1].toArray(),
-            satellitePosition: satellitePosition.toArray()
-          });
           
           // Create new orbit line
-          console.log('Creating new orbit line geometry and material');
           const lineGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
           const lineMaterial = new THREE.LineBasicMaterial({ 
             color: 0x00a2ff,
@@ -391,80 +312,40 @@ const Globe: React.FC = () => {
           
           // Remove any existing orbit line first
           if (activeOrbit && scene) {
-            console.log('Removing existing orbit line');
             scene.remove(activeOrbit);
           }
           
           // Add the new line to the scene
           if (scene) {
-            console.log('Adding new orbit line to scene');
             scene.add(line);
-            console.log('Scene children after adding line:', scene.children.length);
             
             // Log the line's world position
             const lineWorldPosition = line.getWorldPosition(new THREE.Vector3());
-            console.log('Line world position:', lineWorldPosition.toArray());
-            
-            // Log the line's distance from camera
-            if (newCamera) {
-              const distanceToCamera = lineWorldPosition.distanceTo(newCamera.position);
-              console.log('Distance from camera:', distanceToCamera);
-            }
           }
           
           // Store the new orbit line
           setActiveOrbit(line);
-          console.log('New orbit line created and stored in state');
 
           // Change color to blue
-          console.log(`Attempting to change satellite ${satelliteData.data.name} (NORAD ID: ${satelliteData.data.noradId}) to blue`);
-          console.log('Current material:', clickedSprite.material);
-          console.log('Current color before change:', clickedSprite.material.color.getHexString());
-          
-          // First, reset all satellites to white
-          satelliteMeshesRef.current.forEach(sat => {
-            if (sat.mesh !== clickedSprite) {
-              const whiteMaterial = new THREE.SpriteMaterial({
-                map: sat.material.map,
-                color: 0xffffff,
-                sizeAttenuation: true,
-                transparent: true,
-                opacity: 1,
-                blending: THREE.NormalBlending
-              });
-              sat.mesh.material = whiteMaterial;
-              sat.material = whiteMaterial;
-            }
-          });
-          
-          // Create new material with blue color for clicked satellite
-          const newMaterial = new THREE.SpriteMaterial({
+          const whiteMaterial = new THREE.SpriteMaterial({
             map: clickedSprite.material.map,
-            color: 0x00a2ff,
+            color: 0xffffff,
             sizeAttenuation: true,
             transparent: true,
             opacity: 1,
             blending: THREE.NormalBlending
           });
-          
-          // Replace the material
-          clickedSprite.material = newMaterial;
-          satelliteData.material = newMaterial;
-          console.log('New material created and applied');
-          console.log('New color:', clickedSprite.material.color.getHexString());
-          console.log('Sprite visible:', clickedSprite.visible);
-          console.log('Sprite position:', clickedSprite.position);
+          clickedSprite.material = whiteMaterial;
+          satelliteData.material = whiteMaterial;
 
           // Calculate the target camera position
           // Position the camera at a fixed distance from the satellite
           const distance = 8;
           const direction = satellitePosition.clone().normalize();
           const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
-          console.log('Target camera position:', targetPosition.toArray());
 
           // Animate camera movement
           if (newControls) {
-            console.log('Starting camera animation');
             // Disable controls during animation
             newControls.enabled = false;
 
@@ -494,39 +375,23 @@ const Globe: React.FC = () => {
               if (progress < 1) {
                 requestAnimationFrame(animateCamera);
               } else {
-                console.log('Camera animation complete, preparing popup');
                 // Re-enable controls after animation
                 newControls.enabled = true;
                 
                 // Show popup only after animation is complete
                 const screenPosition = satellitePosition.clone().project(newCamera);
-                console.log('Screen position before viewport check:', {
-                  x: screenPosition.x,
-                  y: screenPosition.y,
-                  z: screenPosition.z
-                });
                 
                 // Check if satellite is behind the globe (z > 1)
                 if (screenPosition.z > 1) {
-                  console.log('Satellite is behind the globe, not showing popup');
                   return;
                 }
                 
                 const rect = newRenderer.domElement.getBoundingClientRect();
-                console.log('Viewport dimensions:', {
-                  width: rect.width,
-                  height: rect.height,
-                  left: rect.left,
-                  top: rect.top,
-                  right: rect.right,
-                  bottom: rect.bottom
-                });
                 
                 // Position popup at bottom right of satellite dot with 1px spacing
                 const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
                 let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left + 1;
                 let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top + 1;
-                console.log('Initial popup position:', { x, y });
                 
                 // Ensure popup stays within viewport
                 const popupWidth = 305;
@@ -536,35 +401,23 @@ const Globe: React.FC = () => {
                 // Adjust x position if popup would go off the right edge
                 if (x + popupWidth > rect.right - padding) {
                   x = rect.right - popupWidth - padding;
-                  console.log('Adjusted x position for right edge:', x);
                 }
                 // Adjust x position if popup would go off the left edge
                 if (x < rect.left + padding) {
                   x = rect.left + padding;
-                  console.log('Adjusted x position for left edge:', x);
                 }
                 
                 // Adjust y position if popup would go off the bottom edge
                 if (y + popupHeight > rect.bottom - padding) {
                   y = rect.bottom - popupHeight - padding;
-                  console.log('Adjusted y position for bottom edge:', y);
                 }
                 // Adjust y position if popup would go off the top edge
                 if (y < rect.top + padding) {
                   y = rect.top + padding;
-                  console.log('Adjusted y position for top edge:', y);
                 }
-                
-                console.log('Final popup position:', { x, y });
                 
                 // Add a small delay before showing the popup for smoother animation
                 setTimeout(() => {
-                  console.log('Setting popup state:', {
-                    visible: true,
-                    data: satelliteData.data.name,
-                    x,
-                    y
-                  });
                   setPopup({
                     visible: true,
                     data: satelliteData.data,
@@ -577,15 +430,11 @@ const Globe: React.FC = () => {
 
             animateCamera();
           }
-        } else {
-          console.log('Found sprite but no matching satellite data');
         }
       } else {
-        console.log('No satellite clicked, hiding popup');
         // If clicking outside of a satellite, hide the popup and orbit line
         setPopup({ visible: false, data: null, x: 0, y: 0 });
         if (activeOrbit && scene) {
-          console.log('Removing orbit line');
           scene.remove(activeOrbit);
           setActiveOrbit(null);
         }
@@ -599,8 +448,6 @@ const Globe: React.FC = () => {
     // Create satellites
     createSatellites(newScene, textureLoader)
         .then(allSatellites => {
-          console.log(`Created ${allSatellites.length} satellites`);
-          
           // Add event listeners after satellites are created
           newRenderer.domElement.addEventListener('mousemove', onMouseMove);
           newRenderer.domElement.addEventListener('click', handleClick);
@@ -668,17 +515,6 @@ const Globe: React.FC = () => {
 
     // Cleanup
     return () => {
-      console.log('Starting cleanup process');
-      
-      // Log orbit line status before cleanup
-      if (activeOrbit && scene) {
-        console.log('Orbit line status before cleanup:', {
-          isInScene: scene.children.includes(activeOrbit),
-          position: activeOrbit.position.toArray(),
-          visible: activeOrbit.visible
-        });
-      }
-      
       if (newRenderer.domElement && onMouseMoveRef.current && handleClickRef.current) {
         newRenderer.domElement.removeEventListener('mousemove', onMouseMoveRef.current);
         newRenderer.domElement.removeEventListener('click', handleClickRef.current);
@@ -691,15 +527,6 @@ const Globe: React.FC = () => {
         cancelAnimationFrame(animationRef.current);
       }
       
-      // Log orbit line status after cleanup
-      if (activeOrbit && scene) {
-        console.log('Orbit line status after cleanup:', {
-          isInScene: scene.children.includes(activeOrbit),
-          position: activeOrbit.position.toArray(),
-          visible: activeOrbit.visible
-        });
-      }
-      
       // Remove all orbit lines
       orbitLinesRef.current.forEach(line => {
         if (scene) scene.remove(line);
@@ -710,9 +537,7 @@ const Globe: React.FC = () => {
 
   const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
     try {
-      console.log('Starting satellite creation');
       const satelliteData = await getSatelliteData();
-      console.log(`Retrieved ${satelliteData.length} satellites from data`);
       
       const satelliteMeshes: SatelliteMesh[] = [];
       const orbitLines: THREE.LineSegments[] = [];
@@ -789,7 +614,6 @@ const Globe: React.FC = () => {
       
       return satelliteMeshes;
     } catch (error) {
-      console.error('Error creating satellite positions:', error);
       return [];
     }
   };
@@ -868,18 +692,6 @@ const Globe: React.FC = () => {
 
   // Function to create orbit line
   const createOrbitLine = (satelliteData: SatelliteData) => {
-    console.log('createOrbitLine called with:', {
-      satelliteName: satelliteData.name,
-      orbitHeight: satelliteData.orbit.height,
-      orbitInclination: satelliteData.orbit.inclination * (180 / Math.PI),
-      currentPosition: satelliteData.position,
-      rawData: {
-        RAAN: satelliteData.rawData.RA_OF_ASC_NODE,
-        ARG_PER: satelliteData.rawData.ARG_OF_PERICENTER,
-        MEAN_ANOMALY: satelliteData.rawData.MEAN_ANOMALY
-      }
-    });
-
     const points: THREE.Vector3[] = [];
     const segments = 200;
     const radius = GLOBE_RADIUS * (1 + satelliteData.orbit.height);
