@@ -9,6 +9,10 @@ interface SatelliteData {
     inclination: number;
     phase: number;
   },
+  position?: {
+    latitude: number;
+    longitude: number;
+  },
   rawData: CelestrakResponse;
 }
 
