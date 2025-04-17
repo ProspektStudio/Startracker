@@ -423,25 +423,6 @@ const Globe: React.FC = () => {
                 let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left;
                 let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
                 
-                console.log('Popup Positioning Debug:', {
-                  screenPosition: {
-                    x: screenPosition.x,
-                    y: screenPosition.y,
-                    z: screenPosition.z
-                  },
-                  rect: {
-                    width: rect.width,
-                    height: rect.height,
-                    left: rect.left,
-                    top: rect.top,
-                    right: rect.right,
-                    bottom: rect.bottom
-                  },
-                  dotSize,
-                  initialX: x,
-                  initialY: y
-                });
-                
                 // Ensure popup stays within viewport
                 const popupWidth = 305;
                 const popupHeight = 174;
@@ -450,7 +431,6 @@ const Globe: React.FC = () => {
                 // Adjust x position if popup would go off the right edge
                 if (x + popupWidth > rect.right - padding) {
                   x = x - popupWidth - dotSize - 1; // Position to the left of the dot
-                  console.log('Adjusted X for right edge:', x);
                 } else {
                   x = x + dotSize + 1; // Position to the right of the dot
                 }
@@ -458,21 +438,16 @@ const Globe: React.FC = () => {
                 // Adjust x position if popup would go off the left edge
                 if (x < rect.left + padding) {
                   x = rect.left + padding;
-                  console.log('Adjusted X for left edge:', x);
                 }
                 
                 // Adjust y position if popup would go off the bottom edge
                 if (y + popupHeight > rect.bottom - padding) {
                   y = rect.bottom - popupHeight - padding;
-                  console.log('Adjusted Y for bottom edge:', y);
                 }
                 // Adjust y position if popup would go off the top edge
                 if (y < rect.top + padding) {
                   y = rect.top + padding;
-                  console.log('Adjusted Y for top edge:', y);
                 }
-                
-                console.log('Final Popup Position:', { x, y });
                 
                 // Add a small delay before showing the popup for smoother animation
                 setTimeout(() => {
