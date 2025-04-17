@@ -1,30 +1,67 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
-const SatelliteMenu: React.FC = () => {
+interface SatelliteMenuProps {
+  onGroupSelect: (group: string) => void;
+}
+
+const SatelliteMenu: React.FC<SatelliteMenuProps> = ({ onGroupSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('Satellite Groups');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+
+  const groups = [
+    { name: 'Space Stations', value: 'stations' },
+    { name: 'Globalstar', value: 'globalstar' },
+    { name: 'Intelsat', value: 'intelsat' }
+  ].map(group => ({
+    ...group,
+    onMouseEnter: () => setHoveredItem(group.value),
+    onMouseLeave: () => setHoveredItem(null),
+    onClick: () => {
+      onGroupSelect(group.value);
+      setSelectedGroup(group.value);
+    },
+    style: {
+      padding: '8px 16px',
+      cursor: 'pointer',
+      fontFamily: 'Shentox, sans-serif',
+      fontSize: '14px',
+      color: '#ffffff',
+      backgroundColor: hoveredItem === group.value || selectedGroup === group.value 
+        ? 'rgba(255, 255, 255, 0.1)' 
+        : 'transparent',
+      transition: 'background-color 0.2s ease'
+    }
+  }));
 
   return (
     <div style={{ position: 'relative' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: 'transparent',
+          background: 'rgba(115, 115, 115, 0.4)',
           border: 'none',
-          color: '#D2D2D2',
+          color: '#FFFFFF',
           fontSize: '16px',
           fontFamily: 'Shentox, sans-serif',
+          fontWeight: 500,
           cursor: 'pointer',
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
           gap: '8px',
-          padding: '8px 16px',
-          textDecoration: 'underline',
+          padding: '12px 16px',
+          position: 'relative',
         }}
       >
-        FIND A SATELLITE
+        <span>FIND A SATELLITE</span>
+        <div style={{
+          width: '100%',
+          height: '2px',
+          backgroundColor: 'white',
+          opacity: '1',
+        }} />
       </button>
 
       {isOpen && (
@@ -87,16 +124,6 @@ const SatelliteMenu: React.FC = () => {
                 filter: 'brightness(0) saturate(100%) invert(85%) sepia(4%) saturate(1000%) hue-rotate(180deg) brightness(90%) contrast(90%)',
               }}
             />
-            {/* Selection indicator */}
-            <div style={{
-              position: 'absolute',
-              bottom: '0',
-              left: '16px',
-              width: '120%',
-              height: '1px',
-              backgroundColor: 'white',
-              opacity: '0.3',
-            }} />
           </div>
 
           {/* Separator line */}
@@ -114,31 +141,17 @@ const SatelliteMenu: React.FC = () => {
             height: 'calc(100% - 75px)',
             overflowY: 'auto',
           }}>
-            {/* Example menu items - replace with actual Celestrak data */}
-            <div
-              onMouseEnter={() => setHoveredItem('active')}
-              onMouseLeave={() => setHoveredItem(null)}
-              style={{
-                padding: '11px',
-                color: '#FFFFFF',
-                fontFamily: 'Shentox, sans-serif',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                backgroundColor: hoveredItem === 'active' ? 'rgba(169, 175, 189, 0.2)' : 'transparent',
-              }}
-            >
-              <span>Active Satellites</span>
-              <Image
-                src="/triangle-svgrepo-com.svg"
-                alt="Arrow"
-                width={16}
-                height={16}
-                style={{ filter: 'brightness(0) saturate(100%) invert(85%) sepia(4%) saturate(1000%) hue-rotate(180deg) brightness(90%) contrast(90%)' }}
-              />
-            </div>
-            {/* Add more menu items here */}
+            {groups.map((group) => (
+              <div
+                key={group.value}
+                onClick={group.onClick}
+                onMouseEnter={group.onMouseEnter}
+                onMouseLeave={group.onMouseLeave}
+                style={group.style}
+              >
+                {group.name}
+              </div>
+            ))}
           </div>
         </div>
       )}
