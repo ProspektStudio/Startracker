@@ -15,15 +15,11 @@ const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y }) => {
         position: 'absolute',
         left: x,
         top: y,
-        background: 'rgba(0, 0, 0, 0.9)',
-        color: 'white',
-        borderRadius: '8px',
-        fontSize: '14px',
-        zIndex: 1000,
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
         width: '305px',
-        transform: 'translate(-50%, 20px)',
-        overflow: 'hidden'
+        height: '174px',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
+        background: 'rgba(0, 0, 0, 0.8)',
+        zIndex: 1000,
       }}
     >
       <div style={{ position: 'relative', width: '305px', height: '174px' }}>
