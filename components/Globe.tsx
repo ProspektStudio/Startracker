@@ -7,6 +7,7 @@ import SidePanel from './SidePanel';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
 import SatelliteMenu from './SatelliteMenu';
+import CurrentlyViewing from './CurrentlyViewing';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
@@ -33,33 +34,6 @@ interface TLE {
   name: string;
   tleLine1: string;
   tleLine2: string;
-=======
-interface PopupState {
-  visible: boolean;
-  data: SatelliteData | null;
-  x: number;
-  y: number;
-}
-
-interface CelestrakResponse {
-  NORAD_CAT_ID: number;
-  OBJECT_ID: string;
-  OBJECT_NAME: string;
-  EPOCH: string;
-  MEAN_MOTION: number;
-  ECCENTRICITY: number;
-  INCLINATION: number;
-  RA_OF_ASC_NODE: number;
-  ARG_OF_PERICENTER: number;
-  MEAN_ANOMALY: number;
-  EPHEMERIS_TYPE: number;
-  CLASSIFICATION_TYPE: string;
-  ELEMENT_SET_NO: number;
-  REV_AT_EPOCH: number;
-  BSTAR: number;
-  MEAN_MOTION_DOT: number;
-  MEAN_MOTION_DDOT: number;
-  fetchTime: Date;
 }
 
 interface PopupState {
@@ -100,6 +74,8 @@ const Globe: React.FC = () => {
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
+  const [activeGroup, setActiveGroup] = useState<string>('stations');
+  const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
@@ -122,14 +98,14 @@ const Globe: React.FC = () => {
   const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
 
   // Add orbit line state
-  const [activeOrbit, setActiveOrbit] = useState<THREE.LineSegments | null>(null);
+  const [activeOrbit, setActiveOrbit] = useState<THREE.Line | null>(null);
 
   // Add refs for event handlers
   const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
 
   // Add orbit lines ref
-  const orbitLinesRef = useRef<THREE.LineSegments[]>([]);
+  const orbitLinesRef = useRef<THREE.Line[]>([]);
 
   // Setup Three.js scene
   useEffect(() => {
@@ -204,8 +180,8 @@ const Globe: React.FC = () => {
     newControls.enableDamping = true;
     newControls.dampingFactor = 0.05;
     newControls.rotateSpeed = 0.5;
-    newControls.minDistance = 7;
-    newControls.maxDistance = 20;
+    newControls.minDistance = 5;
+    newControls.maxDistance = 30;
 
     // Initialize raycaster and mouse
     raycasterRef.current = new THREE.Raycaster();
@@ -306,7 +282,7 @@ const Globe: React.FC = () => {
           const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.mesh === clickedSprite);
           if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
             const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.LineBasicMaterial;
-            lineMaterial.opacity = 0.3;
+            lineMaterial.opacity = 1;
           }
 
           // Get the satellite's position for camera movement
@@ -319,16 +295,16 @@ const Globe: React.FC = () => {
           // Create new orbit line
           const lineGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
           const lineMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x00a2ff,
+            color: 0xffffff,
             transparent: true,
-            opacity: 0.8,
+            opacity: 0,
             depthTest: true,
             depthWrite: true,
             linewidth: 2
           });
           
-          // Create line segments instead of a single line
-          const line = new THREE.LineSegments(lineGeometry, lineMaterial);
+          // Create continuous line instead of segments
+          const line = new THREE.Line(lineGeometry, lineMaterial);
           line.renderOrder = 1;
           
           // Position the line at the Earth's center (0,0,0)
@@ -417,7 +393,7 @@ const Globe: React.FC = () => {
                 
                 // Position popup at bottom right of satellite dot with 1px spacing
                 const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
-                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left + 1;
+                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left + dotSize + 1;
                 let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top + 1;
                 
                 // Ensure popup stays within viewport
@@ -473,7 +449,7 @@ const Globe: React.FC = () => {
     handleClickRef.current = handleClick;
 
     // Create satellites
-    createSatellites(newScene, textureLoader)
+    createSatellites(newScene, textureLoader, activeGroup)
         .then(allSatellites => {
           // Add event listeners after satellites are created
           newRenderer.domElement.addEventListener('mousemove', onMouseMove);
@@ -562,12 +538,61 @@ const Globe: React.FC = () => {
     };
   }, []);
 
-  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
+  const handleGroupSelect = async (group: string) => {
+    // If clicking the same group, do nothing
+    if (group === activeGroup) return;
+    
+    setActiveGroup(group);
+    
+    // Clear existing orbit lines
+    if (scene) {
+      orbitLinesRef.current.forEach(line => {
+        scene.remove(line);
+      });
+      orbitLinesRef.current = [];
+    }
+
+    // Clear existing satellites from the scene
+    if (scene) {
+      satelliteMeshesRef.current.forEach(sat => {
+        scene.remove(sat.mesh);
+      });
+      satelliteMeshesRef.current = [];
+    }
+
+    // Create new satellites for the selected group
+    if (scene) {
+      const textureLoader = new THREE.TextureLoader();
+      const newSatelliteMeshes = await createSatellites(scene, textureLoader, group);
+      satelliteMeshesRef.current = newSatelliteMeshes;
+      setSatelliteMeshes(newSatelliteMeshes);
+    }
+
+    // Update the satellites state
+    const satelliteData = await getSatelliteData(group);
+    const allSatellites = satelliteData.map(sat => ({
+      name: sat.OBJECT_NAME,
+      noradId: sat.NORAD_CAT_ID,
+      orbit: {
+        height: sat.MEAN_MOTION,
+        inclination: sat.INCLINATION,
+        phase: sat.MEAN_ANOMALY
+      },
+      rawData: sat,
+      position: {
+        latitude: 0,
+        longitude: 0,
+        altitude: 0
+      }
+    }));
+    setSatellites(allSatellites);
+  };
+
+  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader, group: string): Promise<SatelliteMesh[]> => {
     try {
-      const satelliteData = await getSatelliteData();
-      
+      const satelliteData = await getSatelliteData(group);
       const satelliteMeshes: SatelliteMesh[] = [];
-      const orbitLines: THREE.LineSegments[] = [];
+      const orbitLines: THREE.Line[] = [];
       
       satelliteData.forEach(satData => {
         if (!satData.NORAD_CAT_ID) return;
@@ -605,15 +630,15 @@ const Globe: React.FC = () => {
         const orbitPoints = createOrbitLine(satelliteData);
         const lineGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
         const lineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0x00a2ff,
+          color: 0xffffff,
           transparent: true,
           opacity: 0,
           depthTest: true,
           depthWrite: true,
-          linewidth: 1
+          linewidth: 2
         });
         
-        const orbitLine = new THREE.LineSegments(lineGeometry, lineMaterial);
+        const orbitLine = new THREE.Line(lineGeometry, lineMaterial);
         orbitLine.renderOrder = 1;
         orbitLine.position.set(0, 0, 0);
         scene.add(orbitLine);
@@ -755,19 +780,85 @@ const Globe: React.FC = () => {
     return points;
   };
 
+  const handleSatelliteClick = (satellite: SatelliteData) => {
+    // Find the satellite mesh
+    const satelliteMesh = satelliteMeshesRef.current.find(
+      sat => sat.data.noradId === satellite.noradId
+    );
+
+    if (satelliteMesh && camera && controls) {
+      // Get the satellite's position
+      const satellitePosition = new THREE.Vector3();
+      satelliteMesh.mesh.getWorldPosition(satellitePosition);
+
+      // Calculate the target camera position
+      const distance = 8;
+      const direction = satellitePosition.clone().normalize();
+      const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
+
+      // Disable controls during animation
+      controls.enabled = false;
+
+      // Store initial camera position and target
+      const startPosition = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const endTarget = satellitePosition;
+
+      // Animation duration in milliseconds
+      const duration = 1000;
+      const startTime = Date.now();
+
+      // Hide all orbit lines first
+      orbitLinesRef.current.forEach(line => {
+        if (line.material instanceof THREE.LineBasicMaterial) {
+          line.material.opacity = 0;
+        }
+      });
+
+      // Show the clicked satellite's orbit line
+      const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.data.noradId === satellite.noradId);
+      if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
+        const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.LineBasicMaterial;
+        lineMaterial.opacity = 1;
+      }
+
+      const animateCamera = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease function (cubic ease-out)
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        // Interpolate camera position
+        camera.position.lerpVectors(startPosition, targetPosition, ease);
+
+        // Interpolate control target
+        controls.target.lerpVectors(startTarget, endTarget, ease);
+        controls.update();
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCamera);
+        } else {
+          // Re-enable controls after animation
+          controls.enabled = true;
+        }
+      };
+
+      animateCamera();
+    }
+  };
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        right: '20px',
-        display: 'flex',
-        gap: '10px',
-        zIndex: 1000,
-      }}>
-        <SatelliteMenu />
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <CurrentlyViewing 
+          selectedGroup={activeGroup} 
+          satellites={satellites}
+          onSatelliteClick={handleSatelliteClick}
+        />
+      </div>
+      <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+        <SatelliteMenu onGroupSelect={handleGroupSelect} />
       </div>
       
       <div style={{
