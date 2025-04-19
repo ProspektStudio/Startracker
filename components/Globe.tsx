@@ -393,8 +393,8 @@ const Globe: React.FC = () => {
                 
                 // Position popup at bottom right of satellite dot with 1px spacing
                 const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
-                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left + dotSize + 1;
-                let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top + 1;
+                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left;
+                let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
                 
                 // Ensure popup stays within viewport
                 const popupWidth = 305;
@@ -403,8 +403,11 @@ const Globe: React.FC = () => {
                 
                 // Adjust x position if popup would go off the right edge
                 if (x + popupWidth > rect.right - padding) {
-                  x = rect.right - popupWidth - padding;
+                  x = x - popupWidth - dotSize - 1; // Position to the left of the dot
+                } else {
+                  x = x + dotSize + 1; // Position to the right of the dot
                 }
+                
                 // Adjust x position if popup would go off the left edge
                 if (x < rect.left + padding) {
                   x = rect.left + padding;
@@ -850,15 +853,19 @@ const Globe: React.FC = () => {
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <CurrentlyViewing 
           selectedGroup={activeGroup} 
           satellites={satellites}
           onSatelliteClick={handleSatelliteClick}
         />
       </div>
-      <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
-        <SatelliteMenu onGroupSelect={handleGroupSelect} />
+      <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
+        <SatelliteMenu 
+          onGroupSelect={handleGroupSelect}
+          satellites={satellites}
+          onSatelliteClick={handleSatelliteClick}
+        />
       </div>
       
       <div style={{
