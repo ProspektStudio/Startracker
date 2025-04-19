@@ -75,6 +75,7 @@ const Globe: React.FC = () => {
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
+  const [selectedSatellite, setSelectedSatellite] = useState<SatelliteData | null>(null);
   const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
@@ -98,14 +99,14 @@ const Globe: React.FC = () => {
   const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
 
   // Add orbit line state
-  const [activeOrbit, setActiveOrbit] = useState<THREE.Line | null>(null);
+  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
 
   // Add refs for event handlers
   const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
 
   // Add orbit lines ref
-  const orbitLinesRef = useRef<THREE.Line[]>([]);
+  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
 
   // Setup Three.js scene
   useEffect(() => {
@@ -273,16 +274,16 @@ const Globe: React.FC = () => {
         if (satelliteData) {
           // Hide all orbit lines first
           orbitLinesRef.current.forEach(line => {
-            if (line.material instanceof THREE.LineBasicMaterial) {
+            if (line.material instanceof THREE.MeshBasicMaterial) {
               line.material.opacity = 0;
             }
           });
 
-          // Show the clicked satellite's orbit line
+          // Show only the clicked satellite's orbit line
           const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.mesh === clickedSprite);
           if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
-            const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.LineBasicMaterial;
-            lineMaterial.opacity = 1;
+            const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
+            lineMaterial.opacity = 0.8;
           }
 
           // Get the satellite's position for camera movement
@@ -290,28 +291,13 @@ const Globe: React.FC = () => {
           clickedSprite.getWorldPosition(satellitePosition);
 
           // Create orbit line
-          const orbitPoints = createOrbitLine(satelliteData.data);
-          
-          // Create new orbit line
-          const lineGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
-          const lineMaterial = new THREE.LineBasicMaterial({ 
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0,
-            depthTest: true,
-            depthWrite: true,
-            linewidth: 2
-          });
-          
-          // Create continuous line instead of segments
-          const line = new THREE.Line(lineGeometry, lineMaterial);
-          line.renderOrder = 1;
+          const orbitLine = createOrbitLine(satelliteData.data);
           
           // Position the line at the Earth's center (0,0,0)
-          line.position.set(0, 0, 0);
+          orbitLine.position.set(0, 0, 0);
           
           // Scale the line to make it more visible
-          line.scale.set(1.1, 1.1, 1.1);
+          orbitLine.scale.set(1.1, 1.1, 1.1);
           
           // Remove any existing orbit line first
           if (activeOrbit && scene) {
@@ -320,14 +306,11 @@ const Globe: React.FC = () => {
           
           // Add the new line to the scene
           if (scene) {
-            scene.add(line);
-            
-            // Log the line's world position
-            const lineWorldPosition = line.getWorldPosition(new THREE.Vector3());
+            scene.add(orbitLine);
           }
           
           // Store the new orbit line
-          setActiveOrbit(line);
+          setActiveOrbit(orbitLine);
 
           // Change color to blue
           const whiteMaterial = new THREE.SpriteMaterial({
@@ -478,6 +461,16 @@ const Globe: React.FC = () => {
       
       setFps(currentFps);
 
+      // Update orbit line width based on camera distance
+      if (camera && activeOrbit) {
+        const cameraDistance = camera.position.length();
+        // Scale the line width with distance
+        const baseScale = 1;
+        const scaleFactor = cameraDistance / 12; // 12 is the initial camera distance
+        const newScale = baseScale * scaleFactor;
+        activeOrbit.scale.setScalar(newScale);
+      }
+
       animationRef.current = requestAnimationFrame(animate);
       
       // Update satellite positions and orbit lines
@@ -542,6 +535,7 @@ const Globe: React.FC = () => {
   }, []);
 
   const handleGroupSelect = async (group: string) => {
+    setSelectedSatellite(null); // Clear selected satellite when changing groups
     // If clicking the same group, do nothing
     if (group === activeGroup) return;
     
@@ -595,7 +589,7 @@ const Globe: React.FC = () => {
     try {
       const satelliteData = await getSatelliteData(group);
       const satelliteMeshes: SatelliteMesh[] = [];
-      const orbitLines: THREE.Line[] = [];
+      const orbitLines: THREE.Mesh[] = [];
       
       satelliteData.forEach(satData => {
         if (!satData.NORAD_CAT_ID) return;
@@ -630,18 +624,7 @@ const Globe: React.FC = () => {
         const satMesh = createSatelliteMesh(scene, textureLoader, satelliteData);
         
         // Create orbit line for this satellite
-        const orbitPoints = createOrbitLine(satelliteData);
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
-        const lineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0,
-          depthTest: true,
-          depthWrite: true,
-          linewidth: 2
-        });
-        
-        const orbitLine = new THREE.Line(lineGeometry, lineMaterial);
+        const orbitLine = createOrbitLine(satelliteData);
         orbitLine.renderOrder = 1;
         orbitLine.position.set(0, 0, 0);
         scene.add(orbitLine);
@@ -780,16 +763,90 @@ const Globe: React.FC = () => {
     // Add first point again to close the loop
     points.push(points[0].clone());
 
-    return points;
+    // Create line geometry
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    
+    // Create a wider line using a mesh
+    const lineWidth = 0.05; // Base width of the line
+    const positions = new Float32Array(points.length * 6 * 3); // 6 vertices per segment (2 triangles)
+    const indices = new Uint16Array((points.length - 1) * 6); // 6 indices per segment (2 triangles)
+    
+    // Create vertices and indices for the line mesh
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      
+      // Calculate direction vector
+      const direction = p2.clone().sub(p1).normalize();
+      
+      // Calculate perpendicular vector in the plane
+      const perpendicular = new THREE.Vector3().crossVectors(direction, p1.clone().normalize()).normalize();
+      
+      // Create vertices for the segment
+      const v1 = p1.clone().add(perpendicular.clone().multiplyScalar(lineWidth));
+      const v2 = p1.clone().sub(perpendicular.clone().multiplyScalar(lineWidth));
+      const v3 = p2.clone().add(perpendicular.clone().multiplyScalar(lineWidth));
+      const v4 = p2.clone().sub(perpendicular.clone().multiplyScalar(lineWidth));
+      
+      // Add vertices to positions array
+      const vertices = [v1, v2, v3, v4];
+      vertices.forEach((v, j) => {
+        positions[i * 12 + j * 3] = v.x;
+        positions[i * 12 + j * 3 + 1] = v.y;
+        positions[i * 12 + j * 3 + 2] = v.z;
+      });
+      
+      // Add indices for two triangles
+      const baseIndex = i * 4;
+      indices[i * 6] = baseIndex;
+      indices[i * 6 + 1] = baseIndex + 1;
+      indices[i * 6 + 2] = baseIndex + 2;
+      indices[i * 6 + 3] = baseIndex + 1;
+      indices[i * 6 + 4] = baseIndex + 3;
+      indices[i * 6 + 5] = baseIndex + 2;
+    }
+    
+    const meshGeometry = new THREE.BufferGeometry();
+    meshGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    meshGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    
+    // Create material that will always face the camera
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0, // Start invisible
+      side: THREE.DoubleSide,
+      depthTest: false
+    });
+    
+    const lineMesh = new THREE.Mesh(meshGeometry, material);
+    lineMesh.renderOrder = 1;
+    
+    return lineMesh;
   };
 
   const handleSatelliteClick = (satellite: SatelliteData) => {
+    setSelectedSatellite(satellite);
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(
       sat => sat.data.noradId === satellite.noradId
     );
 
     if (satelliteMesh && camera && controls) {
+      // Hide all orbit lines first
+      orbitLinesRef.current.forEach(line => {
+        if (line.material instanceof THREE.MeshBasicMaterial) {
+          line.material.opacity = 0;
+        }
+      });
+
+      // Show only the clicked satellite's orbit line
+      const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.data.noradId === satellite.noradId);
+      if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
+        const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
+        lineMaterial.opacity = 0.8;
+      }
+
       // Get the satellite's position
       const satellitePosition = new THREE.Vector3();
       satelliteMesh.mesh.getWorldPosition(satellitePosition);
@@ -810,20 +867,6 @@ const Globe: React.FC = () => {
       // Animation duration in milliseconds
       const duration = 1000;
       const startTime = Date.now();
-
-      // Hide all orbit lines first
-      orbitLinesRef.current.forEach(line => {
-        if (line.material instanceof THREE.LineBasicMaterial) {
-          line.material.opacity = 0;
-        }
-      });
-
-      // Show the clicked satellite's orbit line
-      const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.data.noradId === satellite.noradId);
-      if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
-        const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.LineBasicMaterial;
-        lineMaterial.opacity = 1;
-      }
 
       const animateCamera = () => {
         const elapsed = Date.now() - startTime;
@@ -858,6 +901,7 @@ const Globe: React.FC = () => {
           selectedGroup={activeGroup} 
           satellites={satellites}
           onSatelliteClick={handleSatelliteClick}
+          selectedSatellite={selectedSatellite}
         />
       </div>
       <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
