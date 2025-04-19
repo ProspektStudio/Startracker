@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { SatelliteData } from '@/services/types';
 
@@ -14,9 +14,13 @@ const SatelliteMenu: React.FC<SatelliteMenuProps> = ({
   onSatelliteClick 
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState('Satellite Groups');
+  const [selectedGroup, setSelectedGroup] = useState('stations');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [selectedSatellite, setSelectedSatellite] = useState<string | null>(null);
+
+  useEffect(() => {
+    onGroupSelect('stations');
+  }, []);
 
   const groups = [
     { name: 'Space Stations', value: 'stations' },
