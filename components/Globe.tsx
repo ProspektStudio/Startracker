@@ -35,14 +35,14 @@ interface TLE {
   tleLine1: string;
   tleLine2: string;
 }
-
+//Comment
 interface PopupState {
   visible: boolean;
   data: SatelliteData | null;
   x: number;
   y: number;
 }
-
+//comment
 interface CelestrakResponse {
   NORAD_CAT_ID: number;
   OBJECT_ID: string;
