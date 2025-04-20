@@ -1,4 +1,5 @@
 import Dexie, { Table } from 'dexie';
+import { CelestrakResponse } from './types';
 
 interface CelestrakResponse {
   NORAD_CAT_ID: number;
@@ -119,26 +120,21 @@ const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse
   }
 };
 
-const getSatelliteData = async (group: string = 'stations'): Promise<CelestrakResponse[]> => {
-  // First try to get data from Dexie/IndexedDB
-  const cachedData = await getSatelliteDataFromDB(group);
-
-  const oldestFetchTime = cachedData.length > 0
-    ? cachedData.reduce((min, sat) => Math.min(min, sat.fetchTime.getTime()), Infinity)
-    : null;
-  const oneHourAgo = Date.now() - 1 * 60 * 60 * 1000;
-
-  if (oldestFetchTime && oldestFetchTime > oneHourAgo) {
-    console.log('Retrieved fresh satellite data from Dexie/IndexedDB');
-    return cachedData;
-  } else if (oldestFetchTime) {
-    console.log('Cached data is too old, fetching new data.');
-  } else {
-    console.log('No cached data found, fetching new data.');
+export const getSatelliteData = async (group: string): Promise<CelestrakResponse[]> => {
+  try {
+    const response = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`);
+    const data = await response.json();
+    
+    // Add group information to each satellite
+    return data.map((satellite: CelestrakResponse) => ({
+      ...satellite,
+      group: group,
+      fetchTime: new Date()
+    }));
+  } catch (error) {
+    console.error('Error fetching satellite data:', error);
+    return [];
   }
-
-  // If no fresh cached data, fetch from API
-  return fetchSatellitePositions(group);
 };
 
 export type { CelestrakResponse };

@@ -1,13 +1,41 @@
 import { SatelliteData } from '@/services/types';
+import { useEffect, useState } from 'react';
 
 interface SatellitePopupProps {
   data: SatelliteData;
   x: number;
   y: number;
+  isVisible: boolean;
 }
 
-const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y }) => {
+const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible }) => {
+  const [opacity, setOpacity] = useState(0);
   const EARTH_RADIUS = 6371; // Earth radius in km
+
+  useEffect(() => {
+    if (isVisible) {
+      // Fade in
+      setOpacity(1);
+    } else {
+      // Fade out
+      setOpacity(0);
+    }
+  }, [isVisible]);
+
+  // Get the appropriate image based on the satellite's group
+  const getSatelliteImage = () => {
+    const group = data.rawData?.group || '';
+    switch (group.toLowerCase()) {
+      case 'globalstar':
+        return '/Globalstar_1.webp';
+      case 'intelsat':
+        return '/Intelsat.jpg';
+      case 'stations':
+        return '/SpaceStation.avif';
+      default:
+        return '/default.jpg';
+    }
+  };
 
   return (
     <div
@@ -20,11 +48,14 @@ const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y }) => {
         border: '1px solid rgba(255, 255, 255, 0.3)',
         background: 'rgba(0, 0, 0, 0.8)',
         zIndex: 1000,
+        opacity: opacity,
+        transition: 'opacity 0.3s ease-in-out',
+        pointerEvents: opacity > 0 ? 'auto' : 'none',
       }}
     >
       <div style={{ position: 'relative', width: '305px', height: '174px' }}>
         <img 
-          src="/default.jpg" 
+          src={getSatelliteImage()} 
           alt={data.name}
           style={{
             width: '100%',
