@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SatelliteData } from '@/services/types';
+import { marked } from 'marked';
 
 interface SidePanelProps {
   satellite: SatelliteData;
@@ -30,8 +31,11 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
     <div className="side-panel">
       <h2>{satellite.name}</h2>
       <div className="satellite-info">
-        {loading ? <p>Loading AI-Powered Satellite Info...</p> : <p>{satelliteInfo}</p>}
-        {satelliteInfo && <p>{satelliteInfo}</p>}
+        {loading ? (
+          <p>Loading AI-Powered Satellite Info...</p>
+        ) : (
+          <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
+        )}
       </div>
 
       <style jsx>{`
@@ -83,6 +87,28 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
 
         strong {
           color: #88ccff;
+        }
+
+        .markdown-content {
+          margin: 10px 0;
+          font-size: 14px;
+        }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+          color: #88ccff;
+          margin-top: 1em;
+          margin-bottom: 0.5em;
+        }
+
+        .markdown-content p {
+          margin: 0.5em 0;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+          margin-left: 1.5em;
         }
       `}</style>
     </div>
