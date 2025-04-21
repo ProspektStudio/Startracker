@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "install-api": "pip install -r api/requirements.txt",
-    "dev-api": "uvicorn api.main:app --reload",
+    "api": "uvicorn api.main:app --reload",
+    "client": "next dev",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
