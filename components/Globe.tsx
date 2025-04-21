@@ -62,6 +62,7 @@ interface CelestrakResponse {
   MEAN_MOTION_DOT: number;
   MEAN_MOTION_DDOT: number;
   fetchTime: Date;
+  group: string;
 }
 
 const Globe: React.FC = () => {
@@ -73,6 +74,7 @@ const Globe: React.FC = () => {
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
+  const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteData | null>(null);
@@ -276,6 +278,7 @@ const Globe: React.FC = () => {
           orbitLinesRef.current.forEach(line => {
             if (line.material instanceof THREE.MeshBasicMaterial) {
               line.material.opacity = 0;
+              line.material.color.setHex(0xFAC515);
             }
           });
 
@@ -284,6 +287,7 @@ const Globe: React.FC = () => {
           if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
             const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
             lineMaterial.opacity = 0.8;
+            lineMaterial.color.setHex(0xFAC515);
           }
 
           // Get the satellite's position for camera movement
@@ -405,7 +409,10 @@ const Globe: React.FC = () => {
                   y = rect.top + padding;
                 }
                 
-                // Add a small delay before showing the popup for smoother animation
+                // First hide the current popup
+                setIsPopupVisible(false);
+                
+                // After a short delay, show the new popup
                 setTimeout(() => {
                   setPopup({
                     visible: true,
@@ -413,7 +420,8 @@ const Globe: React.FC = () => {
                     x,
                     y
                   });
-                }, 100);
+                  setIsPopupVisible(true);
+                }, 300); // Match this with the transition duration
               }
             };
 
@@ -422,11 +430,14 @@ const Globe: React.FC = () => {
         }
       } else {
         // If clicking outside of a satellite, hide the popup and orbit line
-        setPopup({ visible: false, data: null, x: 0, y: 0 });
-        if (activeOrbit && scene) {
-          scene.remove(activeOrbit);
-          setActiveOrbit(null);
-        }
+        setIsPopupVisible(false);
+        setTimeout(() => {
+          setPopup({ visible: false, data: null, x: 0, y: 0 });
+          if (activeOrbit && scene) {
+            scene.remove(activeOrbit);
+            setActiveOrbit(null);
+          }
+        }, 300); // Match this with the transition duration
       }
     };
 
@@ -541,6 +552,12 @@ const Globe: React.FC = () => {
     
     setActiveGroup(group);
     
+    // Hide the popup immediately
+    setIsPopupVisible(false);
+    setTimeout(() => {
+      setPopup({ visible: false, data: null, x: 0, y: 0 });
+    }, 300); // Match the transition duration
+
     // Clear existing orbit lines
     if (scene) {
       orbitLinesRef.current.forEach(line => {
@@ -763,70 +780,39 @@ const Globe: React.FC = () => {
     // Add first point again to close the loop
     points.push(points[0].clone());
 
-    // Create line geometry
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    // Create a curve from the points
+    const curve = new THREE.CatmullRomCurve3(points);
     
-    // Create a wider line using a mesh
-    const lineWidth = 0.05; // Base width of the line
-    const positions = new Float32Array(points.length * 6 * 3); // 6 vertices per segment (2 triangles)
-    const indices = new Uint16Array((points.length - 1) * 6); // 6 indices per segment (2 triangles)
+    // Create tube geometry
+    const tubeGeometry = new THREE.TubeGeometry(
+      curve,
+      segments,
+      0.02, // tube radius
+      8,    // radial segments
+      false // closed
+    );
     
-    // Create vertices and indices for the line mesh
-    for (let i = 0; i < points.length - 1; i++) {
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      
-      // Calculate direction vector
-      const direction = p2.clone().sub(p1).normalize();
-      
-      // Calculate perpendicular vector in the plane
-      const perpendicular = new THREE.Vector3().crossVectors(direction, p1.clone().normalize()).normalize();
-      
-      // Create vertices for the segment
-      const v1 = p1.clone().add(perpendicular.clone().multiplyScalar(lineWidth));
-      const v2 = p1.clone().sub(perpendicular.clone().multiplyScalar(lineWidth));
-      const v3 = p2.clone().add(perpendicular.clone().multiplyScalar(lineWidth));
-      const v4 = p2.clone().sub(perpendicular.clone().multiplyScalar(lineWidth));
-      
-      // Add vertices to positions array
-      const vertices = [v1, v2, v3, v4];
-      vertices.forEach((v, j) => {
-        positions[i * 12 + j * 3] = v.x;
-        positions[i * 12 + j * 3 + 1] = v.y;
-        positions[i * 12 + j * 3 + 2] = v.z;
-      });
-      
-      // Add indices for two triangles
-      const baseIndex = i * 4;
-      indices[i * 6] = baseIndex;
-      indices[i * 6 + 1] = baseIndex + 1;
-      indices[i * 6 + 2] = baseIndex + 2;
-      indices[i * 6 + 3] = baseIndex + 1;
-      indices[i * 6 + 4] = baseIndex + 3;
-      indices[i * 6 + 5] = baseIndex + 2;
-    }
-    
-    const meshGeometry = new THREE.BufferGeometry();
-    meshGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    meshGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    
-    // Create material that will always face the camera
+    // Create material for the tube
     const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0xFAC515, // Golden yellow color
       transparent: true,
       opacity: 0, // Start invisible
       side: THREE.DoubleSide,
       depthTest: false
     });
     
-    const lineMesh = new THREE.Mesh(meshGeometry, material);
-    lineMesh.renderOrder = 1;
+    const tubeMesh = new THREE.Mesh(tubeGeometry, material);
+    tubeMesh.renderOrder = 1;
     
-    return lineMesh;
+    return tubeMesh;
   };
 
   const handleSatelliteClick = (satellite: SatelliteData) => {
     setSelectedSatellite(satellite);
+    
+    // Hide current popup immediately
+    setIsPopupVisible(false);
+    
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(
       sat => sat.data.noradId === satellite.noradId
@@ -837,6 +823,7 @@ const Globe: React.FC = () => {
       orbitLinesRef.current.forEach(line => {
         if (line.material instanceof THREE.MeshBasicMaterial) {
           line.material.opacity = 0;
+          line.material.color.setHex(0xFAC515);
         }
       });
 
@@ -845,6 +832,7 @@ const Globe: React.FC = () => {
       if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
         const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
         lineMaterial.opacity = 0.8;
+        lineMaterial.color.setHex(0xFAC515);
       }
 
       // Get the satellite's position
@@ -887,6 +875,57 @@ const Globe: React.FC = () => {
         } else {
           // Re-enable controls after animation
           controls.enabled = true;
+
+          // Show popup after camera animation
+          const screenPosition = satellitePosition.clone().project(camera);
+          
+          // Check if satellite is behind the globe (z > 1)
+          if (screenPosition.z > 1) {
+            return;
+          }
+          
+          const rect = renderer?.domElement.getBoundingClientRect();
+          if (!rect) return;
+          
+          // Position popup at bottom right of satellite dot with 1px spacing
+          const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
+          let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left;
+          let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
+          
+          // Ensure popup stays within viewport
+          const popupWidth = 305;
+          const popupHeight = 174;
+          const padding = 10;
+          
+          // Adjust x position if popup would go off the right edge
+          if (x + popupWidth > rect.right - padding) {
+            x = x - popupWidth - dotSize - 1; // Position to the left of the dot
+          } else {
+            x = x + dotSize + 1; // Position to the right of the dot
+          }
+          
+          // Adjust x position if popup would go off the left edge
+          if (x < rect.left + padding) {
+            x = rect.left + padding;
+          }
+          
+          // Adjust y position if popup would go off the bottom edge
+          if (y + popupHeight > rect.bottom - padding) {
+            y = rect.bottom - popupHeight - padding;
+          }
+          // Adjust y position if popup would go off the top edge
+          if (y < rect.top + padding) {
+            y = rect.top + padding;
+          }
+          
+          // Update popup position and show it
+          setPopup({
+            visible: true,
+            data: satellite,
+            x,
+            y
+          });
+          setIsPopupVisible(true);
         }
       };
 
@@ -989,6 +1028,7 @@ const Globe: React.FC = () => {
           data={popup.data}
           x={popup.x}
           y={popup.y}
+          isVisible={isPopupVisible}
         />
       )}
       {/* <SidePanel satellites={satellites} /> */}
