@@ -1,26 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { CelestrakResponse } from './types';
-
-interface CelestrakResponse {
-  NORAD_CAT_ID: number;
-  OBJECT_ID: string;
-  OBJECT_NAME: string;
-  EPOCH: string;
-  MEAN_MOTION: number;
-  ECCENTRICITY: number;
-  INCLINATION: number;
-  RA_OF_ASC_NODE: number;
-  ARG_OF_PERICENTER: number;
-  MEAN_ANOMALY: number;
-  EPHEMERIS_TYPE: number;
-  CLASSIFICATION_TYPE: string;
-  ELEMENT_SET_NO: number;
-  REV_AT_EPOCH: number;
-  BSTAR: number;
-  MEAN_MOTION_DOT: number;
-  MEAN_MOTION_DDOT: number;
-  fetchTime: Date;
-}
+import { CelestrakResponse, SatelliteData } from './types';
 
 interface SatelliteGroupPair {
   id: string;
@@ -109,7 +88,7 @@ const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse
     const data = await response.json() as CelestrakResponse[];
     const fetchTime = new Date();
     data.forEach(sat => sat.fetchTime = fetchTime);
-    console.log('Received satellite data:', data);
+    console.log('Received satellite data at', fetchTime, 'for group', group, data);
 
     await storeSatelliteData(data, group);
 
@@ -120,16 +99,17 @@ const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse
   }
 };
 
-export const getSatelliteData = async (group: string): Promise<CelestrakResponse[]> => {
+export const getSatelliteData = async (group: string): Promise<SatelliteData[]> => {
   try {
     const response = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`);
     const data = await response.json();
     
     // Add group information to each satellite
     return data.map((satellite: CelestrakResponse) => ({
-      ...satellite,
+      name: satellite.OBJECT_NAME,
+      noradId: satellite.NORAD_CAT_ID,
       group: group,
-      fetchTime: new Date()
+      rawData: satellite
     }));
   } catch (error) {
     console.error('Error fetching satellite data:', error);

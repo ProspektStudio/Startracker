@@ -1,9 +1,8 @@
 from fastapi import FastAPI, Query
 from dotenv import load_dotenv
 import os
-import requests
 from google import genai
-from google.genai import types
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -12,6 +11,15 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.0-flash"
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+
+# set cors
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def read_root():

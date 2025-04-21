@@ -1,15 +1,17 @@
 import { SatelliteData } from '@/services/types';
-import { useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 interface SatellitePopupProps {
   data: SatelliteData;
   x: number;
   y: number;
   isVisible: boolean;
+  setGettingInfo: Dispatch<SetStateAction<boolean>>;
 }
 
-const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible }) => {
+const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible, setGettingInfo }) => {
   const [opacity, setOpacity] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const EARTH_RADIUS = 6371; // Earth radius in km
 
   useEffect(() => {
@@ -24,7 +26,7 @@ const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible }
 
   // Get the appropriate image based on the satellite's group
   const getSatelliteImage = () => {
-    const group = data.rawData?.group || '';
+    const group = data.group || '';
     switch (group.toLowerCase()) {
       case 'globalstar':
         return '/Globalstar_1.webp';
@@ -126,6 +128,30 @@ const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible }
           }}>Norad ID:</span>
           <span style={{ color: 'white' }}>{data.noradId}</span>
         </div>
+      </div>
+      <div>
+      <button 
+          onClick={() => setGettingInfo(true)}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          style={{
+            width: 'calc(100% - 48px)',
+            margin: '0 24px 16px 24px',
+            padding: '8px 16px',
+            background: isHovered ? 'rgba(59, 130, 246, 0.9)' : 'rgba(59, 130, 246, 0.8)',
+            border: '1px solid rgba(147, 197, 253, 0.3)',
+            borderRadius: '4px',
+            color: 'white',
+            fontSize: '14px',
+            fontFamily: 'Shentox',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease-in-out',
+            transform: isHovered ? 'translateY(-1px)' : 'none'
+          }}
+        >
+          Get AI-Powered Satellite Info
+        </button>
       </div>
     </div>
   );

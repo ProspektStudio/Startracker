@@ -1,9 +1,7 @@
-import * as THREE from 'three';
-import { CelestrakResponse } from './data';
-
 interface SatelliteData {
   name: string;
   noradId: number;
+  group: string;
   orbit: {
     height: number;
     inclination: number;
@@ -37,5 +35,4 @@ export interface CelestrakResponse {
   MEAN_MOTION_DOT: number;
   MEAN_MOTION_DDOT: number;
   fetchTime: Date;
-  group: string;
 }
