@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { SatelliteData } from '@/services/types';
 import { marked } from 'marked';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
+
 interface SidePanelProps {
   satellite: SatelliteData;
 }
@@ -17,10 +19,15 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
 
   const getSatelliteInfo = async () => {
     setLoading(true);
-    const response = await fetch(`http://localhost:8000/satellite-info?group=${satellite.group}&name=${satellite.name}`);
-    const data = await response.json() as SatelliteInfoResponse;
-    setSatelliteInfo(data.satellite_info);
-    setLoading(false);
+    try {
+      const response = await fetch(`${API_URL}/api/satellite-info?group=${satellite.group}&name=${satellite.name}`);
+      const data = await response.json() as SatelliteInfoResponse;
+      setSatelliteInfo(data.satellite_info);
+    } catch (error) {
+      console.error('Error fetching satellite info:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {

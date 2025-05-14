@@ -21,11 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+@app.get("/api/hello")
 async def read_root():
     return {"message": "Hello World"} 
 
-@app.get("/satellite-info")
+@app.get("/api/satellite-info")
 async def get_satellite_info(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
