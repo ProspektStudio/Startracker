@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -23,46 +25,11 @@ interface TooltipState {
   y: number;
 }
 
-interface SatellitePosition {
-  NORAD_CAT_ID: string;
-  x: number;
-  y: number;
-  z: number;
-}
-
-interface TLE {
-  name: string;
-  tleLine1: string;
-  tleLine2: string;
-}
-//Comment
 interface PopupState {
   visible: boolean;
   data: SatelliteData | null;
   x: number;
   y: number;
-}
-//comment
-interface CelestrakResponse {
-  NORAD_CAT_ID: number;
-  OBJECT_ID: string;
-  OBJECT_NAME: string;
-  EPOCH: string;
-  MEAN_MOTION: number;
-  ECCENTRICITY: number;
-  INCLINATION: number;
-  RA_OF_ASC_NODE: number;
-  ARG_OF_PERICENTER: number;
-  MEAN_ANOMALY: number;
-  EPHEMERIS_TYPE: number;
-  CLASSIFICATION_TYPE: string;
-  ELEMENT_SET_NO: number;
-  REV_AT_EPOCH: number;
-  BSTAR: number;
-  MEAN_MOTION_DOT: number;
-  MEAN_MOTION_DDOT: number;
-  fetchTime: Date;
-  group: string;
 }
 
 const Globe: React.FC = () => {
@@ -75,6 +42,7 @@ const Globe: React.FC = () => {
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [isPopupVisible, setIsPopupVisible] = useState(false);
+  const [gettingInfo, setGettingInfo] = useState(false);
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteData | null>(null);
@@ -581,25 +549,6 @@ const Globe: React.FC = () => {
       satelliteMeshesRef.current = newSatelliteMeshes;
       setSatelliteMeshes(newSatelliteMeshes);
     }
-
-    // Update the satellites state
-    const satelliteData = await getSatelliteData(group);
-    const allSatellites = satelliteData.map(sat => ({
-      name: sat.OBJECT_NAME,
-      noradId: sat.NORAD_CAT_ID,
-      orbit: {
-        height: sat.MEAN_MOTION,
-        inclination: sat.INCLINATION,
-        phase: sat.MEAN_ANOMALY
-      },
-      rawData: sat,
-      position: {
-        latitude: 0,
-        longitude: 0,
-        altitude: 0
-      }
-    }));
-    setSatellites(allSatellites);
   };
 
   const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader, group: string): Promise<SatelliteMesh[]> => {
@@ -609,49 +558,45 @@ const Globe: React.FC = () => {
       const orbitLines: THREE.Mesh[] = [];
       
       satelliteData.forEach(satData => {
-        if (!satData.NORAD_CAT_ID) return;
+        const rawData = satData.rawData;
+        if (!rawData.NORAD_CAT_ID) return;
         
         // Calculate orbital parameters
-        const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(satData.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
-        const inclination = satData.INCLINATION * (Math.PI / 180);
-        const raan = satData.RA_OF_ASC_NODE * (Math.PI / 180);
-        const argPerigee = satData.ARG_OF_PERICENTER * (Math.PI / 180);
-        const meanAnomaly = satData.MEAN_ANOMALY * (Math.PI / 180);
+        const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(rawData.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
+        const inclination = rawData.INCLINATION * (Math.PI / 180);
+        const raan = rawData.RA_OF_ASC_NODE * (Math.PI / 180);
+        const argPerigee = rawData.ARG_OF_PERICENTER * (Math.PI / 180);
+        const meanAnomaly = rawData.MEAN_ANOMALY * (Math.PI / 180);
         
-        // Create satellite data object
-        const satelliteData: SatelliteData = {
-          name: satData.OBJECT_NAME,
-          noradId: satData.NORAD_CAT_ID,
-          orbit: {
-            height: semiMajorAxis * (1 - satData.ECCENTRICITY) - 1,
-            inclination: inclination,
-            phase: meanAnomaly
-          },
-          position: {
-            latitude: Math.asin(Math.sin(meanAnomaly) * Math.sin(inclination)) * (180 / Math.PI),
-            longitude: Math.atan2(
-              Math.sin(meanAnomaly) * Math.cos(inclination),
-              Math.cos(meanAnomaly)
-            ) * (180 / Math.PI)
-          },
-          rawData: satData
-        };
-        
+        // set orbit and position
+        satData.orbit = {
+          height: semiMajorAxis * (1 - rawData.ECCENTRICITY) - 1,
+          inclination: inclination,
+          phase: meanAnomaly
+        }
+        satData.position = {
+          latitude: Math.asin(Math.sin(meanAnomaly) * Math.sin(inclination)) * (180 / Math.PI),
+          longitude: Math.atan2(
+            Math.sin(meanAnomaly) * Math.cos(inclination),
+            Math.cos(meanAnomaly)
+          ) * (180 / Math.PI)
+        }
+
         // Create and add the satellite mesh
-        const satMesh = createSatelliteMesh(scene, textureLoader, satelliteData);
+        const satMesh = createSatelliteMesh(scene, textureLoader, satData);
         
         // Create orbit line for this satellite
-        const orbitLine = createOrbitLine(satelliteData);
+        const orbitLine = createOrbitLine(satData);
         orbitLine.renderOrder = 1;
         orbitLine.position.set(0, 0, 0);
         scene.add(orbitLine);
         orbitLines.push(orbitLine);
         
         // Calculate initial position
-        const radius = GLOBE_RADIUS * (1 + satelliteData.orbit.height);
-        const x = Math.cos(meanAnomaly) * radius;
-        const y = Math.sin(meanAnomaly) * radius * Math.sin(inclination);
-        const z = Math.sin(meanAnomaly) * radius * Math.cos(inclination);
+        const radius = GLOBE_RADIUS * (1 + satData.orbit.height);
+        const x = Math.cos(satData.orbit.phase) * radius;
+        const y = Math.sin(satData.orbit.phase) * radius * Math.sin(satData.orbit.inclination);
+        const z = Math.sin(satData.orbit.phase) * radius * Math.cos(satData.orbit.inclination);
         
         const position = new THREE.Vector3(x, y, z);
         position.applyAxisAngle(new THREE.Vector3(0, 1, 0), argPerigee);
@@ -1029,9 +974,12 @@ const Globe: React.FC = () => {
           x={popup.x}
           y={popup.y}
           isVisible={isPopupVisible}
+          setGettingInfo={setGettingInfo}
         />
       )}
-      {/* <SidePanel satellites={satellites} /> */}
+      {popup.visible && popup.data && gettingInfo && (
+        <SidePanel satellite={popup.data} />
+      )}
     </div>
   );
 };

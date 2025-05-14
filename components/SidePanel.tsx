@@ -1,18 +1,48 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { SatelliteData } from '@/services/types';
+import { marked } from 'marked';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
 
 interface SidePanelProps {
-  satellites: SatelliteData[];
+  satellite: SatelliteData;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ satellites }) => {
-  if (!satellites) return null;
+interface SatelliteInfoResponse {
+  satellite_info: string;
+}
+
+const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
+  if (!satellite) return null;
+  const [loading, setLoading] = useState(true);
+  const [satelliteInfo, setSatelliteInfo] = useState<string | null>(null);
+
+  const getSatelliteInfo = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/satellite-info?group=${satellite.group}&name=${satellite.name}`);
+      const data = await response.json() as SatelliteInfoResponse;
+      setSatelliteInfo(data.satellite_info);
+    } catch (error) {
+      console.error('Error fetching satellite info:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    getSatelliteInfo();
+  }, [satellite]);
 
   return (
     <div className="side-panel">
-      <h2>Satellites</h2>
+      <h2>{satellite.name}</h2>
       <div className="satellite-info">
-        <pre>{JSON.stringify(satellites, null, 2)}</pre>
+        {loading ? (
+          <p>Loading AI-Powered Satellite Info...</p>
+        ) : (
+          <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
+        )}
       </div>
 
       <style jsx>{`
@@ -59,10 +89,33 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellites }) => {
         .satellite-info p {
           margin: 10px 0;
           font-size: 14px;
+          white-space: pre-wrap;
         }
 
         strong {
           color: #88ccff;
+        }
+
+        .markdown-content {
+          margin: 10px 0;
+          font-size: 14px;
+        }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+          color: #88ccff;
+          margin-top: 1em;
+          margin-bottom: 0.5em;
+        }
+
+        .markdown-content p {
+          margin: 0.5em 0;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+          margin-left: 1.5em;
         }
       `}</style>
     </div>
