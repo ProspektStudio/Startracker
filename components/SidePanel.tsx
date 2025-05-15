@@ -20,13 +20,36 @@ const fetchSatelliteInfo = async (group: string, name: string): Promise<string> 
   return data.satellite_info;
 };
 
+const fetchSatelliteInfoInChuncks = async (group: string, name: string, onData: (chunk: string) => void): Promise<void> => {
+  console.log('fetching satellite info in chunks');
+  const response = await fetch(`${API_URL}/api/satellite-info-stream?group=${group}&name=${name}`);
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+  if (!reader) return;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    onData(chunk);
+  }
+};
+
 const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
   if (!satellite) return null;
 
-  const { data: satelliteInfo, isLoading } = useQuery({
-    queryKey: ['satelliteInfo', satellite.group, satellite.name],
-    queryFn: () => fetchSatelliteInfo(satellite.group, satellite.name),
-  });
+  const [satelliteInfo, setSatelliteInfo] = React.useState<string>('');
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (satellite) {
+      setSatelliteInfo('');
+      setIsLoading(true);
+      fetchSatelliteInfoInChuncks(satellite.group, satellite.name, (chunk) => {
+        setIsLoading(false);
+        setSatelliteInfo(prev => prev + chunk);
+      });
+    }
+  }, [satellite]);
 
   return (
     <div className="side-panel">
