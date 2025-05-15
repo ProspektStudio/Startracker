@@ -2,6 +2,7 @@ import React from 'react';
 import { SatelliteData } from '@/services/types';
 import { useQuery } from '@tanstack/react-query';
 import { marked } from 'marked';
+import Spinner from './Spinner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
 
@@ -32,7 +33,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
       <h2>{satellite.name}</h2>
       <div className="satellite-info">
         {isLoading ? (
-          <p>Loading AI-Powered Satellite Info...</p>
+          <Spinner />
         ) : (
           <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
         )}
