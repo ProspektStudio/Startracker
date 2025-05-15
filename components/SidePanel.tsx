@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { SatelliteData } from '@/services/types';
+import { useQuery } from '@tanstack/react-query';
 import { marked } from 'marked';
+import Spinner from './Spinner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
 
@@ -12,34 +14,49 @@ interface SatelliteInfoResponse {
   satellite_info: string;
 }
 
+const fetchSatelliteInfo = async (group: string, name: string): Promise<string> => {
+  const response = await fetch(`${API_URL}/api/satellite-info?group=${group}&name=${name}`);
+  const data = await response.json() as SatelliteInfoResponse;
+  return data.satellite_info;
+};
+
+const fetchSatelliteInfoInChuncks = async (group: string, name: string, onData: (chunk: string) => void): Promise<void> => {
+  console.log('fetching satellite info in chunks');
+  const response = await fetch(`${API_URL}/api/satellite-info-stream?group=${group}&name=${name}`);
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+  if (!reader) return;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    onData(chunk);
+  }
+};
+
 const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
   if (!satellite) return null;
-  const [loading, setLoading] = useState(true);
-  const [satelliteInfo, setSatelliteInfo] = useState<string | null>(null);
 
-  const getSatelliteInfo = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/satellite-info?group=${satellite.group}&name=${satellite.name}`);
-      const data = await response.json() as SatelliteInfoResponse;
-      setSatelliteInfo(data.satellite_info);
-    } catch (error) {
-      console.error('Error fetching satellite info:', error);
-    } finally {
-      setLoading(false);
+  const [satelliteInfo, setSatelliteInfo] = React.useState<string>('');
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (satellite) {
+      setSatelliteInfo('');
+      setIsLoading(true);
+      fetchSatelliteInfoInChuncks(satellite.group, satellite.name, (chunk) => {
+        setIsLoading(false);
+        setSatelliteInfo(prev => prev + chunk);
+      });
     }
-  }
-
-  useEffect(() => {
-    getSatelliteInfo();
   }, [satellite]);
 
   return (
     <div className="side-panel">
       <h2>{satellite.name}</h2>
       <div className="satellite-info">
-        {loading ? (
-          <p>Loading AI-Powered Satellite Info...</p>
+        {isLoading ? (
+          <Spinner />
         ) : (
           <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
         )}
