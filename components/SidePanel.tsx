@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { SatelliteData } from '@/services/types';
+import { useQuery } from '@tanstack/react-query';
 import { marked } from 'marked';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
@@ -12,33 +13,25 @@ interface SatelliteInfoResponse {
   satellite_info: string;
 }
 
+const fetchSatelliteInfo = async (group: string, name: string): Promise<string> => {
+  const response = await fetch(`${API_URL}/api/satellite-info?group=${group}&name=${name}`);
+  const data = await response.json() as SatelliteInfoResponse;
+  return data.satellite_info;
+};
+
 const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
   if (!satellite) return null;
-  const [loading, setLoading] = useState(true);
-  const [satelliteInfo, setSatelliteInfo] = useState<string | null>(null);
 
-  const getSatelliteInfo = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/satellite-info?group=${satellite.group}&name=${satellite.name}`);
-      const data = await response.json() as SatelliteInfoResponse;
-      setSatelliteInfo(data.satellite_info);
-    } catch (error) {
-      console.error('Error fetching satellite info:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    getSatelliteInfo();
-  }, [satellite]);
+  const { data: satelliteInfo, isLoading } = useQuery({
+    queryKey: ['satelliteInfo', satellite.group, satellite.name],
+    queryFn: () => fetchSatelliteInfo(satellite.group, satellite.name),
+  });
 
   return (
     <div className="side-panel">
       <h2>{satellite.name}</h2>
       <div className="satellite-info">
-        {loading ? (
+        {isLoading ? (
           <p>Loading AI-Powered Satellite Info...</p>
         ) : (
           <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
