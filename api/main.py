@@ -42,7 +42,7 @@ async def get_satellite_info(
         "satellite_info": response.text
     }
 
-@app.get("/api/satellite-info-stream")
+@app.get("/api/satellite-info-gemini")
 async def get_satellite_info_stream(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
@@ -74,8 +74,7 @@ async def get_satellite_info_rag(
 ):
     async def generate_satellite_info_stream(prompt):
         try:
-            for chunk in rag_satellite_agent.ask(f"What is a satellite?"):
-                print('chunk', chunk)
+            for chunk in rag_satellite_agent.ask(prompt):
                 if "messages" in chunk and chunk["messages"]:
                     message = chunk["messages"][-1]
                     if isinstance(message, AIMessage) or (isinstance(message, dict) and message.get("role") == "assistant"):
@@ -85,6 +84,7 @@ async def get_satellite_info_rag(
             print(f"An error occurred: {e}")
             yield f"Error: {e}\n\n"
 
+    # f"What is a satellite?"
     prompt = f"Give me information about the satellite {name} in the group {group}"
 
     return StreamingResponse(

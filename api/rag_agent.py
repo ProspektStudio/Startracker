@@ -22,7 +22,11 @@ topic = 'Satellites'
 embeddings_model = "text-embedding-004"
 webpage_documents = [
     'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite'
+    'https://en.wikipedia.org/wiki/Satellite',
+    'https://www.spacex.com/vehicles/dragon/',
+    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
+    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
+    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
 ]
 
 llm_model_provider = "google_genai"
@@ -40,7 +44,7 @@ class RagAgent:
         self.topic = topic
         self.system_prompt = """You are an expert in the topic of {topic} and you are here to answer any questions you have regarding the topic.
 Use the following pieces of retrieved context to answer the question.
-Give me a really long answer, feel free to ramble and repeat yourself as much as possible to make the answer really long.
+Give as much relevant information as possible.
 Context: {context}:"""
         self.greeting = f"Hello! I am an expert in {topic}. Ask me any questions you have regarding the topic."
         self.llm_model = llm_model
