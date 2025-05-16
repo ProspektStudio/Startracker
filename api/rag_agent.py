@@ -9,26 +9,38 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
+from uvicorn.logging import logging as uvicorn_logging
 from dotenv import load_dotenv
-import logging
 
 load_dotenv()
+logger = uvicorn_logging.getLogger("uvicorn")
+
+# RagAgent Config
+
+topic = 'Satellites'
+
+embeddings_model = "text-embedding-004"
+webpage_documents = [
+    'https://www.nasa.gov/general/what-is-a-satellite/',
+    'https://en.wikipedia.org/wiki/Satellite'
+]
+
+llm_model_provider = "google_genai"
+llm_model = "gemini-2.0-flash"
 
 class RagAgent:
     def __init__(
         self,
         topic,
-        llm_model=None,
-        llm_model_provider=None,
         embeddings_model=None,
         webpage_documents=None,
-        logger=None
+        llm_model=None,
+        llm_model_provider=None,
     ):
         self.topic = topic
         self.system_prompt = """You are an expert in the topic of {topic} and you are here to answer any questions you have regarding the topic.
 Use the following pieces of retrieved context to answer the question.
-If you don't know the answer, just say that you don't know.
-Use three sentences maximum and keep the answer concise.
+Give me a really long answer, feel free to ramble and repeat yourself as much as possible to make the answer really long.
 Context: {context}:"""
         self.greeting = f"Hello! I am an expert in {topic}. Ask me any questions you have regarding the topic."
         self.llm_model = llm_model
@@ -40,7 +52,6 @@ Context: {context}:"""
         self.memory = None
         self.agent_executor = None
         self.config = {"configurable": {"thread_id": "def234"}}
-        self.logger = logger
 
         # Initialize components
         self._setup_retrieval()
@@ -48,7 +59,7 @@ Context: {context}:"""
         self._setup_memory()
         self._setup_agent()
         
-        self.logger.info(f"RAG Agent initialized for topic: {topic}")
+        logger.info(f"RAG Agent initialized for topic: {topic}")
 
     def _setup_retrieval(self):
         """Set up the retrieval components."""
@@ -61,7 +72,7 @@ Context: {context}:"""
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             all_splits = text_splitter.split_documents(docs)
             _ = self.vector_store.add_documents(documents=all_splits)
-            self.logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
+            logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
     
     def generate_retrieve_tool(self):
         @tool(response_format="content_and_artifact")
@@ -100,3 +111,11 @@ Context: {context}:"""
             stream_mode="values",
             config=self.config
         )
+
+rag_satellite_agent = RagAgent(
+    topic=topic,
+    embeddings_model=embeddings_model,
+    webpage_documents=webpage_documents,
+    llm_model=llm_model,
+    llm_model_provider=llm_model_provider
+)

@@ -5,9 +5,9 @@ from google import genai
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import asyncio
-from rag_agent import RagAgent
+from rag_agent import rag_satellite_agent
 from uvicorn.logging import logging as uvicorn_logging
-
+from langchain.schema import AIMessage
 logger = uvicorn_logging.getLogger("uvicorn")
 
 app = FastAPI()
@@ -18,28 +18,6 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.0-flash"
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-
-# RagAgent Config
-
-topic = 'Satellites'
-
-embeddings_model = "text-embedding-004"
-webpage_documents = [
-    'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite'
-]
-
-llm_model_provider = "google_genai"
-llm_model = GEMINI_MODEL
-rag_agent = RagAgent(
-    topic=topic,
-    llm_model=llm_model,
-    llm_model_provider=llm_model_provider,
-    embeddings_model=embeddings_model,
-    webpage_documents=webpage_documents,
-    logger=logger
-)
-logger.info("RAG Agent initialized")
 
 # set cors
 app.add_middleware(
@@ -94,7 +72,22 @@ async def get_satellite_info_rag(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
 ):
-    response = rag_agent.ask(f"Give me information about the satellite {name} in the group {group}")
-    return {
-        "satellite_info": response.text
-    }
+    async def generate_satellite_info_stream(prompt):
+        try:
+            for chunk in rag_satellite_agent.ask(f"What is a satellite?"):
+                print('chunk', chunk)
+                if "messages" in chunk and chunk["messages"]:
+                    message = chunk["messages"][-1]
+                    if isinstance(message, AIMessage) or (isinstance(message, dict) and message.get("role") == "assistant"):
+                        full_response = message["content"] if isinstance(message, dict) else message.content
+                        yield full_response
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            yield f"Error: {e}\n\n"
+
+    prompt = f"Give me information about the satellite {name} in the group {group}"
+
+    return StreamingResponse(
+        generate_satellite_info_stream(prompt),
+        media_type="text/event-stream"
+    )

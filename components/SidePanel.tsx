@@ -30,7 +30,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
     setSatelliteInfo('');
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/satellite-info-stream?group=${group}&name=${name}`);
+      const response = await fetch(`${API_URL}/api/satellite-info-rag?group=${group}&name=${name}`);
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       if (!reader) return;
