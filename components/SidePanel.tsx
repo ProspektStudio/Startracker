@@ -20,34 +20,36 @@ const fetchSatelliteInfo = async (group: string, name: string): Promise<string> 
   return data.satellite_info;
 };
 
-const fetchSatelliteInfoInChuncks = async (group: string, name: string, onData: (chunk: string) => void): Promise<void> => {
-  console.log('fetching satellite info in chunks');
-  const response = await fetch(`${API_URL}/api/satellite-info-stream?group=${group}&name=${name}`);
-  const reader = response.body?.getReader();
-  const decoder = new TextDecoder();
-  if (!reader) return;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    onData(chunk);
-  }
-};
-
 const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
   if (!satellite) return null;
 
   const [satelliteInfo, setSatelliteInfo] = React.useState<string>('');
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
 
-  React.useEffect(() => {
-    if (satellite) {
-      setSatelliteInfo('');
-      setIsLoading(true);
-      fetchSatelliteInfoInChuncks(satellite.group, satellite.name, (chunk) => {
+  const fetchSatelliteInfoInChuncks = async (group: string, name: string): Promise<void> => {
+    setSatelliteInfo('');
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/satellite-info-stream?group=${group}&name=${name}`);
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) return;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
         setIsLoading(false);
         setSatelliteInfo(prev => prev + chunk);
-      });
+      }
+    } catch (error) {
+      setSatelliteInfo('Error fetching satellite info');
+      console.error('Error fetching satellite info in chunks:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (satellite) {
+      fetchSatelliteInfoInChuncks(satellite.group, satellite.name);
     }
   }, [satellite]);
 

@@ -12,6 +12,7 @@
 
 # python
 __pycache__
+venv/
 
 # production
 /build
@@ -37,4 +38,4 @@ yarn-error.log*
 
 # IDE
 .idea
-.vscode 
+.vscode
