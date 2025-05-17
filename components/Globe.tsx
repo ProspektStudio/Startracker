@@ -890,15 +890,8 @@ const Globe: React.FC = () => {
   };
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <CurrentlyViewing 
-          selectedGroup={activeGroup} 
-          satellites={satellites}
-          onSatelliteClick={handleSatelliteClick}
-          selectedSatellite={selectedSatellite}
-        />
-      </div>
+    <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
+
       <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
         <SatelliteMenu 
           onGroupSelect={handleGroupSelect}
@@ -938,8 +931,8 @@ const Globe: React.FC = () => {
             e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
           }}
         >
-          <svg 
-            width="16" 
+          <svg
+            width="16"
             height="16" 
             viewBox="0 0 24 24" 
             fill="none" 
@@ -987,9 +980,6 @@ const Globe: React.FC = () => {
           isVisible={isPopupVisible}
           setGettingInfo={setGettingInfo}
         />
-      )}
-      {popup.visible && popup.data && gettingInfo && (
-        <SidePanel satellite={popup.data} />
       )}
     </div>
   );

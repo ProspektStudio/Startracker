@@ -2,8 +2,6 @@ import { SatelliteData } from '@/services/types';
 
 interface CurrentlyViewingProps {
   selectedGroup: string;
-  satellites: SatelliteData[];
-  onSatelliteClick: (satellite: SatelliteData) => void;
   selectedSatellite: SatelliteData | null;
 }
 
@@ -22,7 +20,7 @@ const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, sele
   if (!selectedGroup) return null;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div>
       <div
         style={{
           background: 'rgba(0, 0, 0, 0.3)',
@@ -60,4 +58,4 @@ const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, sele
   );
 };
 
-export default CurrentlyViewing; 
+export default CurrentlyViewing;

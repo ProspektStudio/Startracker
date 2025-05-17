@@ -1,15 +1,12 @@
 import React from 'react';
-import { SatelliteData } from '@/services/types';
 import { marked } from 'marked';
 import Spinner from './Spinner';
 import apiClient from '@/services/apiClient';
+import CurrentlyViewing from './CurrentlyViewing';
+import useClientStore from '@/services/clientStore';
 
-interface SidePanelProps {
-  satellite: SatelliteData;
-}
-
-const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
-  if (!satellite) return null;
+const SidePanel: React.FC = () => {
+  const { selectedGroup, selectedSatellite } = useClientStore();
 
   const [satelliteInfo, setSatelliteInfo] = React.useState<string>('');
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
@@ -26,116 +23,94 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
     } catch (error) {
       setSatelliteInfo('Error fetching satellite info');
       setIsLoading(false);
-      console.error('Error fetching satellite info in chunks:', error);
+      console.error('Error fetching satellite info:', error);
     }
   };
 
   React.useEffect(() => {
-    if (satellite) {
-      fetchSatelliteInfoInChuncks(satellite.group, satellite.name);
+    if (selectedSatellite) {
+      fetchSatelliteInfoInChuncks(selectedSatellite.group, selectedSatellite.name);
     }
-  }, [satellite, agent]);
+  }, [selectedSatellite, agent]);
 
   return (
     <div className="side-panel">
-      <h2>{satellite.name}</h2>
-      <div className="toggle-buttons">
-        <button
-          className={`toggle-button ${agent === 'gemini' ? 'active' : ''}`}
-          onClick={() => setAgent('gemini')}
-        >
-          Gemini
-        </button>
-        <button
-          className={`toggle-button ${agent === 'rag' ? 'active' : ''}`}
-          onClick={() => setAgent('rag')}
-        >
-          RAG
-        </button>
-      </div>
-
-      <style jsx>{`
-        .toggle-buttons {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 20px;
-        }
-
-        .toggle-button {
-          padding: 8px 16px;
-          border: 1px solid #666;
-          background: transparent;
-          color: white;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: all 0.2s ease;
-        }
-
-        .toggle-button:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        .toggle-button.active {
-          background: #666;
-        }
-      `}</style>
-      <p>
-        <b>{agent === 'gemini' ? 'Google Gemini 2.0 Flash' : 'Retrieval Augmented Generation'}</b>
-        <span 
-          style={{ 
-            marginLeft: '8px', 
-            cursor: 'help',
-            position: 'relative',
-            display: 'inline-block'
-          }} 
-          onMouseEnter={(e) => {
-            const tooltip = document.createElement('div');
-            tooltip.style.cssText = `
-              position: absolute;
-              bottom: 100%;
-              left: 50%;
-              transform: translateX(${agent === 'gemini' ? '-50%' : '-60%'});
-              padding: 8px;
-              background: rgba(0, 0, 0, 0.8);
-              color: white;
-              border-radius: 4px;
-              font-size: 12px;
-              z-index: 1000;
-              pointer-events: none;
-              width: 300px;
-            `;
-            tooltip.textContent = `${agent === 'gemini' 
-              ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
-              : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
-            e.currentTarget.appendChild(tooltip);
-          }}
-          onMouseLeave={(e) => {
-            const tooltip = e.currentTarget.querySelector('div');
-            if (tooltip) {
-              tooltip.remove();
-            }
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M12 16v-4"></path>
-            <path d="M12 8h.01"></path>
-          </svg>
-        </span>
-      </p>
-      <div className="satellite-info">
-        {isLoading ? (
-          <Spinner />
-        ) : (
-          <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
-        )}
-      </div>
-
+      <CurrentlyViewing 
+        selectedGroup={selectedGroup}
+        selectedSatellite={selectedSatellite}
+      />
+      {selectedSatellite && (
+        <>
+          <h2>{selectedSatellite.name}</h2>
+          <div className="toggle-buttons">
+            <button
+              className={`toggle-button ${agent === 'gemini' ? 'active' : ''}`}
+              onClick={() => setAgent('gemini')}
+            >
+              Gemini
+            </button>
+            <button
+              className={`toggle-button ${agent === 'rag' ? 'active' : ''}`}
+              onClick={() => setAgent('rag')}
+            >
+              RAG
+            </button>
+          </div>
+          <p>
+            <b>{agent === 'gemini' ? 'Google Gemini 2.0 Flash' : 'Retrieval Augmented Generation'}</b>
+            <span 
+              style={{ 
+                marginLeft: '8px', 
+                cursor: 'help',
+                position: 'relative',
+                display: 'inline-block'
+              }} 
+              onMouseEnter={(e) => {
+                const tooltip = document.createElement('div');
+                tooltip.style.cssText = `
+                  position: absolute;
+                  bottom: 100%;
+                  left: 50%;
+                  transform: translateX(${agent === 'gemini' ? '-50%' : '-60%'});
+                  padding: 8px;
+                  background: rgba(0, 0, 0, 0.8);
+                  color: white;
+                  border-radius: 4px;
+                  font-size: 12px;
+                  z-index: 1000;
+                  pointer-events: none;
+                  width: 300px;
+                `;
+                tooltip.textContent = `${agent === 'gemini' 
+                  ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
+                  : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
+                e.currentTarget.appendChild(tooltip);
+              }}
+              onMouseLeave={(e) => {
+                const tooltip = e.currentTarget.querySelector('div');
+                if (tooltip) {
+                  tooltip.remove();
+                }
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 16v-4"></path>
+                <path d="M12 8h.01"></path>
+              </svg>
+            </span>
+          </p>
+          <div className="satellite-info">
+            {isLoading ? (
+              <Spinner />
+            ) : (
+              <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked(satelliteInfo || '') }} />
+            )}
+          </div>
+        </>
+      )}
       <style jsx>{`
         .side-panel {
-          position: fixed;
-          right: 0;
-          top: 0;
           width: 400px;
           height: 100%;
           background: rgba(25, 25, 25, 0.85);
@@ -202,6 +177,30 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
         .markdown-content ul,
         .markdown-content ol {
           margin-left: 1.5em;
+        }
+
+        .toggle-buttons {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 20px;
+        }
+
+        .toggle-button {
+          padding: 8px 16px;
+          border: 1px solid #666;
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: all 0.2s ease;
+        }
+
+        .toggle-button:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .toggle-button.active {
+          background: #666;
         }
       `}</style>
     </div>
