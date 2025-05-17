@@ -10,6 +10,8 @@ import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
 import SatelliteMenu from './SatelliteMenu';
 import CurrentlyViewing from './CurrentlyViewing';
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '@/services/apiClient';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
@@ -77,6 +79,15 @@ const Globe: React.FC = () => {
 
   // Add orbit lines ref
   const orbitLinesRef = useRef<THREE.Mesh[]>([]);
+
+  useQuery({
+    queryKey: ['hello'],
+    queryFn: async () => {
+      const data = await apiClient.get('/api/hello');
+      console.log(data);
+      return data;
+    }
+  });
 
   // Setup Three.js scene
   useEffect(() => {
