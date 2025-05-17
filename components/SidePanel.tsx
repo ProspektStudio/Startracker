@@ -2,22 +2,11 @@ import React from 'react';
 import { SatelliteData } from '@/services/types';
 import { marked } from 'marked';
 import Spinner from './Spinner';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
+import apiClient from '@/services/apiClient';
 
 interface SidePanelProps {
   satellite: SatelliteData;
 }
-
-interface SatelliteInfoResponse {
-  satellite_info: string;
-}
-
-const fetchSatelliteInfo = async (group: string, name: string): Promise<string> => {
-  const response = await fetch(`${API_URL}/api/satellite-info?group=${group}&name=${name}`);
-  const data = await response.json() as SatelliteInfoResponse;
-  return data.satellite_info;
-};
 
 const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
   if (!satellite) return null;
@@ -30,17 +19,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
     setSatelliteInfo('');
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/satellite-info-${agent}?group=${group}&name=${name}`);
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) return;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
+      await apiClient.streamSatelliteInfo(agent, group, name, (chunk) => {
         setIsLoading(false);
         setSatelliteInfo(prev => prev + chunk);
-      }
+      });
     } catch (error) {
       setSatelliteInfo('Error fetching satellite info');
       setIsLoading(false);
@@ -124,7 +106,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ satellite }) => {
             `;
             tooltip.textContent = `${agent === 'gemini' 
               ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
-              : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain and LangGraph providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
+              : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
             e.currentTarget.appendChild(tooltip);
           }}
           onMouseLeave={(e) => {
