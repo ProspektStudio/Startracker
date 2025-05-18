@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import getSatelliteData from '@/services/data';
+import getSatelliteData from '@/services/satelliteData';
 import { SatelliteData } from '@/services/types';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
@@ -34,56 +34,45 @@ interface PopupState {
 }
 
 const Globe: React.FC = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
+
+  // State
   const [scene, setScene] = useState<THREE.Scene | null>(null);
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
-  const [globe, setGlobe] = useState<THREE.Mesh | null>(null);
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [isPopupVisible, setIsPopupVisible] = useState(false);
-  const [gettingInfo, setGettingInfo] = useState(false);
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
-  const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
+  const [fps, setFps] = useState<number>(0);
+  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
+
+  // Refs
+  const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
-  const lastUpdateRef = useRef<number | null>(null);
   const satelliteMeshesRef = useRef<SatelliteMesh[]>([]);
-  const [fps, setFps] = useState<number>(0);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef<number>(performance.now());
-
-  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
+  const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
+  const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
+  const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
+  const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
+  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
 
   // Constants
   const GLOBE_RADIUS = 5;
   const SATELLITE_SIZE = 0.15;
   const ORBIT_SPEED = 0.000001;
 
-  // Add initial camera position reference
-  const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
-  const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
-
-  // Add orbit line state
-  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
-
-  // Add refs for event handlers
-  const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
-  const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
-
-  // Add orbit lines ref
-  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
-
+  // Cold start the api server
   useQuery({
     queryKey: ['hello'],
-    queryFn: async () => {
-      const data = await apiClient.get('/api/hello');
-      console.log(data);
-      return data;
-    }
+    queryFn: apiClient.hello
   });
 
   // Setup Three.js scene
@@ -170,7 +159,6 @@ const Globe: React.FC = () => {
     setScene(newScene);
     setCamera(newCamera);
     setRenderer(newRenderer);
-    setGlobe(newGlobe);
     setControls(newControls);
 
     // Define event handlers
@@ -425,11 +413,11 @@ const Globe: React.FC = () => {
 
     // Create satellites
     createSatellites(newScene, textureLoader, activeGroup)
-        .then(allSatellites => {
-          // Add event listeners after satellites are created
-          newRenderer.domElement.addEventListener('mousemove', onMouseMove);
-          newRenderer.domElement.addEventListener('click', handleClick);
-        });
+      .then(() => {
+        // Add event listeners after satellites are created
+        newRenderer.domElement.addEventListener('mousemove', onMouseMove);
+        newRenderer.domElement.addEventListener('click', handleClick);
+      });
 
     // Animation loop
     const animate = () => {
@@ -557,7 +545,6 @@ const Globe: React.FC = () => {
       const textureLoader = new THREE.TextureLoader();
       const newSatelliteMeshes = await createSatellites(scene, textureLoader, group);
       satelliteMeshesRef.current = newSatelliteMeshes;
-      setSatelliteMeshes(newSatelliteMeshes);
     }
   };
 
@@ -964,7 +951,6 @@ const Globe: React.FC = () => {
           x={popup.x}
           y={popup.y}
           isVisible={isPopupVisible}
-          setGettingInfo={setGettingInfo}
         />
       )}
     </div>

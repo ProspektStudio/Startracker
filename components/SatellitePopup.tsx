@@ -6,7 +6,6 @@ interface SatellitePopupProps {
   x: number;
   y: number;
   isVisible: boolean;
-  setGettingInfo: Dispatch<SetStateAction<boolean>>;
 }
 
 const SatellitePopup: React.FC<SatellitePopupProps> = ({ data, x, y, isVisible }) => {
