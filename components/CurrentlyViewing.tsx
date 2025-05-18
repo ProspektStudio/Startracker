@@ -1,13 +1,10 @@
+import useClientStore from '@/services/clientStore';
 import { SatelliteData } from '@/services/types';
 
-interface CurrentlyViewingProps {
-  selectedGroup: string;
-  satellites: SatelliteData[];
-  onSatelliteClick: (satellite: SatelliteData) => void;
-  selectedSatellite: SatelliteData | null;
-}
+const CurrentlyViewing: React.FC = () => {
 
-const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, selectedSatellite }) => {
+  const { selectedGroup, selectedSatellite } = useClientStore();
+
   // Get the group name from the group value
   const getGroupName = (value: string) => {
     const groups = [
@@ -22,7 +19,7 @@ const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, sele
   if (!selectedGroup) return null;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div>
       <div
         style={{
           background: 'rgba(0, 0, 0, 0.3)',
@@ -60,4 +57,4 @@ const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, sele
   );
 };
 
-export default CurrentlyViewing; 
+export default CurrentlyViewing;

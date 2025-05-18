@@ -1,26 +1,24 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { SatelliteData } from '@/services/types';
+import useClientStore from '@/services/clientStore';
 
 interface SatelliteMenuProps {
-  onGroupSelect: (group: string) => void;
   satellites: SatelliteData[];
-  onSatelliteClick: (satellite: SatelliteData) => void;
 }
 
 const SatelliteMenu: React.FC<SatelliteMenuProps> = ({ 
-  onGroupSelect, 
   satellites,
-  onSatelliteClick 
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState('stations');
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-  const [selectedSatellite, setSelectedSatellite] = useState<string | null>(null);
+  const { 
+    selectedGroup,
+    selectedSatellite,
+    setSelectedGroup,
+    setSelectedSatellite, 
+   } = useClientStore();
 
-  useEffect(() => {
-    onGroupSelect('stations');
-  }, []);
+  const [isOpen, setIsOpen] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const groups = [
     { name: 'Space Stations', value: 'stations' },
@@ -31,7 +29,6 @@ const SatelliteMenu: React.FC<SatelliteMenuProps> = ({
     onMouseEnter: () => setHoveredItem(group.value),
     onMouseLeave: () => setHoveredItem(null),
     onClick: () => {
-      onGroupSelect(group.value);
       setSelectedGroup(group.value);
     },
     style: {
@@ -212,7 +209,7 @@ const SatelliteMenu: React.FC<SatelliteMenuProps> = ({
                       fontFamily: 'Shentox, sans-serif',
                       fontSize: '14px',
                       color: '#ffffff',
-                      backgroundColor: hoveredItem === satellite.name || selectedSatellite === satellite.name
+                      backgroundColor: hoveredItem === satellite.name || selectedSatellite?.name === satellite.name
                         ? 'rgba(255, 255, 255, 0.1)' 
                         : 'transparent',
                       transition: 'background-color 0.2s ease',
@@ -220,8 +217,7 @@ const SatelliteMenu: React.FC<SatelliteMenuProps> = ({
                     onMouseEnter={() => setHoveredItem(satellite.name)}
                     onMouseLeave={() => setHoveredItem(null)}
                     onClick={() => {
-                      onSatelliteClick(satellite);
-                      setSelectedSatellite(satellite.name);
+                      setSelectedSatellite(satellite);
                     }}
                   >
                     {satellite.name}

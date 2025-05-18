@@ -1,6 +1,9 @@
 import Dexie, { Table } from 'dexie';
 import { CelestrakResponse, SatelliteData } from './types';
 
+  // Constants for realistic orbital heights (in Earth radii)
+  const EARTH_RADIUS = 6371;
+
 interface SatelliteGroupPair {
   id: string;
   group: string;
@@ -46,13 +49,13 @@ export const getSatellitesByGroup = async (group: string): Promise<CelestrakResp
       .where('group')
       .equals(group)
       .toArray();
-    
+
     const noradIds = groupEntries.map(entry => entry.NORAD_CAT_ID);
     const satellites = await db.satellites
       .where('NORAD_CAT_ID')
       .anyOf(noradIds)
       .toArray();
-    
+
     return satellites;
   } catch (error) {
     console.error('Error retrieving satellites by group:', error);
@@ -99,22 +102,56 @@ const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse
   }
 };
 
-export const getSatelliteData = async (group: string): Promise<SatelliteData[]> => {
-  try {
-    const response = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`);
-    const data = await response.json();
+const getSatelliteData = async (group: string = 'stations'): Promise<SatelliteData[]> => {
+  // First try to get data from Dexie/IndexedDB
+  let data = await getSatelliteDataFromDB(group);
+
+  const oldestFetchTime = data.length > 0
+    ? data.reduce((min, sat) => Math.min(min, sat.fetchTime.getTime()), Infinity)
+    : null;
+  const oneHourAgo = Date.now() - 1 * 60 * 60 * 1000;
+
+  if (oldestFetchTime && oldestFetchTime > oneHourAgo) {
+    console.log('Retrieved fresh satellite data from Dexie/IndexedDB');
+  } else if (oldestFetchTime) {
+    console.log('Cached data is too old, fetching new data.');
+    data = await fetchSatellitePositions(group);
+  } else {
+    console.log('No cached data found, fetching new data.');
+    data = await fetchSatellitePositions(group);
+  }
+
+  return data.map((satellite: CelestrakResponse) => {
+
+    // Calculate orbital parameters
+    const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(satellite.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
+    const inclination = satellite.INCLINATION * (Math.PI / 180);
+    const raan = satellite.RA_OF_ASC_NODE * (Math.PI / 180);
+    const argPerigee = satellite.ARG_OF_PERICENTER * (Math.PI / 180);
+    const meanAnomaly = satellite.MEAN_ANOMALY * (Math.PI / 180);
     
-    // Add group information to each satellite
-    return data.map((satellite: CelestrakResponse) => ({
+    // set orbit and position
+    return {
       name: satellite.OBJECT_NAME,
       noradId: satellite.NORAD_CAT_ID,
       group: group,
-      rawData: satellite
-    }));
-  } catch (error) {
-    console.error('Error fetching satellite data:', error);
-    return [];
-  }
+      rawData: satellite,
+      orbit: {
+        height: semiMajorAxis * (1 - satellite.ECCENTRICITY) - 1,
+        inclination: inclination,
+        phase: meanAnomaly,
+        argPerigee: argPerigee,
+        raan: raan
+      },
+      position: {
+        latitude: Math.asin(Math.sin(meanAnomaly) * Math.sin(inclination)) * (180 / Math.PI),
+        longitude: Math.atan2(
+          Math.sin(meanAnomaly) * Math.cos(inclination),
+          Math.cos(meanAnomaly)
+        ) * (180 / Math.PI)
+      }
+    }
+  });
 };
 
 export type { CelestrakResponse };

@@ -5,13 +5,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/data';
 import { SatelliteData } from '@/services/types';
-import SidePanel from './SidePanel';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
 import SatelliteMenu from './SatelliteMenu';
-import CurrentlyViewing from './CurrentlyViewing';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
+import useClientStore from '@/services/clientStore';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
@@ -47,7 +46,6 @@ const Globe: React.FC = () => {
   const [gettingInfo, setGettingInfo] = useState(false);
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
-  const [selectedSatellite, setSelectedSatellite] = useState<SatelliteData | null>(null);
   const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
@@ -58,13 +56,12 @@ const Globe: React.FC = () => {
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef<number>(performance.now());
 
+  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
+
   // Constants
   const GLOBE_RADIUS = 5;
   const SATELLITE_SIZE = 0.15;
   const ORBIT_SPEED = 0.000001;
-
-  // Constants for realistic orbital heights (in Earth radii)
-  const EARTH_RADIUS = 6371;
 
   // Add initial camera position reference
   const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
@@ -253,6 +250,8 @@ const Globe: React.FC = () => {
         );
 
         if (satelliteData) {
+          setSelectedSatellite(satelliteData.data);
+
           // Hide all orbit lines first
           orbitLinesRef.current.forEach(line => {
             if (line.material instanceof THREE.MeshBasicMaterial) {
@@ -562,6 +561,10 @@ const Globe: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    handleGroupSelect(selectedGroup);
+  }, [selectedGroup]);
+
   const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader, group: string): Promise<SatelliteMesh[]> => {
     try {
       const satelliteData = await getSatelliteData(group);
@@ -572,27 +575,6 @@ const Globe: React.FC = () => {
         const rawData = satData.rawData;
         if (!rawData.NORAD_CAT_ID) return;
         
-        // Calculate orbital parameters
-        const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(rawData.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
-        const inclination = rawData.INCLINATION * (Math.PI / 180);
-        const raan = rawData.RA_OF_ASC_NODE * (Math.PI / 180);
-        const argPerigee = rawData.ARG_OF_PERICENTER * (Math.PI / 180);
-        const meanAnomaly = rawData.MEAN_ANOMALY * (Math.PI / 180);
-        
-        // set orbit and position
-        satData.orbit = {
-          height: semiMajorAxis * (1 - rawData.ECCENTRICITY) - 1,
-          inclination: inclination,
-          phase: meanAnomaly
-        }
-        satData.position = {
-          latitude: Math.asin(Math.sin(meanAnomaly) * Math.sin(inclination)) * (180 / Math.PI),
-          longitude: Math.atan2(
-            Math.sin(meanAnomaly) * Math.cos(inclination),
-            Math.cos(meanAnomaly)
-          ) * (180 / Math.PI)
-        }
-
         // Create and add the satellite mesh
         const satMesh = createSatelliteMesh(scene, textureLoader, satData);
         
@@ -610,8 +592,8 @@ const Globe: React.FC = () => {
         const z = Math.sin(satData.orbit.phase) * radius * Math.cos(satData.orbit.inclination);
         
         const position = new THREE.Vector3(x, y, z);
-        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), argPerigee);
-        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), raan);
+        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), satData.orbit.argPerigee);
+        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), satData.orbit.raan);
         
         satMesh.mesh.position.copy(position);
         satelliteMeshes.push(satMesh);
@@ -889,21 +871,18 @@ const Globe: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedSatellite) {
+      handleSatelliteClick(selectedSatellite);
+    }
+  }, [selectedSatellite]);
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <CurrentlyViewing 
-          selectedGroup={activeGroup} 
-          satellites={satellites}
-          onSatelliteClick={handleSatelliteClick}
-          selectedSatellite={selectedSatellite}
-        />
-      </div>
+    <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
+
       <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
         <SatelliteMenu 
-          onGroupSelect={handleGroupSelect}
           satellites={satellites}
-          onSatelliteClick={handleSatelliteClick}
         />
       </div>
       
@@ -938,8 +917,8 @@ const Globe: React.FC = () => {
             e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
           }}
         >
-          <svg 
-            width="16" 
+          <svg
+            width="16"
             height="16" 
             viewBox="0 0 24 24" 
             fill="none" 
@@ -987,9 +966,6 @@ const Globe: React.FC = () => {
           isVisible={isPopupVisible}
           setGettingInfo={setGettingInfo}
         />
-      )}
-      {popup.visible && popup.data && gettingInfo && (
-        <SidePanel satellite={popup.data} />
       )}
     </div>
   );
