@@ -5,13 +5,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/data';
 import { SatelliteData } from '@/services/types';
-import SidePanel from './SidePanel';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
 import SatelliteMenu from './SatelliteMenu';
-import CurrentlyViewing from './CurrentlyViewing';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
+import useClientStore from '@/services/clientStore';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
@@ -47,7 +46,6 @@ const Globe: React.FC = () => {
   const [gettingInfo, setGettingInfo] = useState(false);
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
-  const [selectedSatellite, setSelectedSatellite] = useState<SatelliteData | null>(null);
   const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
@@ -57,6 +55,8 @@ const Globe: React.FC = () => {
   const [fps, setFps] = useState<number>(0);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef<number>(performance.now());
+
+  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
 
   // Constants
   const GLOBE_RADIUS = 5;
@@ -250,6 +250,8 @@ const Globe: React.FC = () => {
         );
 
         if (satelliteData) {
+          setSelectedSatellite(satelliteData.data);
+
           // Hide all orbit lines first
           orbitLinesRef.current.forEach(line => {
             if (line.material instanceof THREE.MeshBasicMaterial) {
@@ -559,6 +561,10 @@ const Globe: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    handleGroupSelect(selectedGroup);
+  }, [selectedGroup]);
+
   const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader, group: string): Promise<SatelliteMesh[]> => {
     try {
       const satelliteData = await getSatelliteData(group);
@@ -865,14 +871,18 @@ const Globe: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedSatellite) {
+      handleSatelliteClick(selectedSatellite);
+    }
+  }, [selectedSatellite]);
+
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
 
       <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
         <SatelliteMenu 
-          onGroupSelect={handleGroupSelect}
           satellites={satellites}
-          onSatelliteClick={handleSatelliteClick}
         />
       </div>
       

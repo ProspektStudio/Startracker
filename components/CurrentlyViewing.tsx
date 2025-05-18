@@ -1,11 +1,10 @@
+import useClientStore from '@/services/clientStore';
 import { SatelliteData } from '@/services/types';
 
-interface CurrentlyViewingProps {
-  selectedGroup: string;
-  selectedSatellite: SatelliteData | null;
-}
+const CurrentlyViewing: React.FC = () => {
 
-const CurrentlyViewing: React.FC<CurrentlyViewingProps> = ({ selectedGroup, selectedSatellite }) => {
+  const { selectedGroup, selectedSatellite } = useClientStore();
+
   // Get the group name from the group value
   const getGroupName = (value: string) => {
     const groups = [

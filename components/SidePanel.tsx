@@ -6,7 +6,7 @@ import CurrentlyViewing from './CurrentlyViewing';
 import useClientStore from '@/services/clientStore';
 
 const SidePanel: React.FC = () => {
-  const { selectedGroup, selectedSatellite } = useClientStore();
+  const { selectedSatellite } = useClientStore();
 
   const [satelliteInfo, setSatelliteInfo] = React.useState<string>('');
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
@@ -35,10 +35,7 @@ const SidePanel: React.FC = () => {
 
   return (
     <div className="side-panel">
-      <CurrentlyViewing 
-        selectedGroup={selectedGroup}
-        selectedSatellite={selectedSatellite}
-      />
+      <CurrentlyViewing />
       {selectedSatellite && (
         <>
           <h2>{selectedSatellite.name}</h2>
