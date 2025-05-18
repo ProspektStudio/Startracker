@@ -7,7 +7,6 @@ import getSatelliteData from '@/services/satelliteData';
 import { SatelliteData } from '@/services/types';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
-import SatelliteMenu from './SatelliteMenu';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import useClientStore from '@/services/clientStore';
@@ -35,7 +34,12 @@ interface PopupState {
 
 const Globe: React.FC = () => {
 
-  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
+  const {
+    selectedGroup,
+    selectedSatellite,
+    setSatellites,
+    setSelectedSatellite
+  } = useClientStore();
 
   // State
   const [scene, setScene] = useState<THREE.Scene | null>(null);
@@ -45,7 +49,6 @@ const Globe: React.FC = () => {
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [isPopupVisible, setIsPopupVisible] = useState(false);
-  const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [fps, setFps] = useState<number>(0);
   const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
@@ -867,12 +870,6 @@ const Globe: React.FC = () => {
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
 
-      <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
-        <SatelliteMenu 
-          satellites={satellites}
-        />
-      </div>
-      
       <div style={{
         position: 'absolute',
         bottom: '20px',

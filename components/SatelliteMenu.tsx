@@ -3,14 +3,9 @@ import Image from 'next/image';
 import { SatelliteData } from '@/services/types';
 import useClientStore from '@/services/clientStore';
 
-interface SatelliteMenuProps {
-  satellites: SatelliteData[];
-}
-
-const SatelliteMenu: React.FC<SatelliteMenuProps> = ({ 
-  satellites,
-}) => {
-  const { 
+const SatelliteMenu: React.FC = () => {
+  const {
+    satellites,
     selectedGroup,
     selectedSatellite,
     setSelectedGroup,
@@ -45,7 +40,7 @@ const SatelliteMenu: React.FC<SatelliteMenuProps> = ({
   }));
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
