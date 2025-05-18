@@ -6,6 +6,8 @@ interface SatelliteData {
     height: number;
     inclination: number;
     phase: number;
+    argPerigee: number;
+    raan: number;
   },
   position?: {
     latitude: number;

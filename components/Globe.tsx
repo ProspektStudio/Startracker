@@ -63,9 +63,6 @@ const Globe: React.FC = () => {
   const SATELLITE_SIZE = 0.15;
   const ORBIT_SPEED = 0.000001;
 
-  // Constants for realistic orbital heights (in Earth radii)
-  const EARTH_RADIUS = 6371;
-
   // Add initial camera position reference
   const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
   const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
@@ -572,27 +569,6 @@ const Globe: React.FC = () => {
         const rawData = satData.rawData;
         if (!rawData.NORAD_CAT_ID) return;
         
-        // Calculate orbital parameters
-        const semiMajorAxis = Math.pow(398600.4418 / (Math.pow(rawData.MEAN_MOTION * 2 * Math.PI / 86400, 2)), 1/3) / EARTH_RADIUS;
-        const inclination = rawData.INCLINATION * (Math.PI / 180);
-        const raan = rawData.RA_OF_ASC_NODE * (Math.PI / 180);
-        const argPerigee = rawData.ARG_OF_PERICENTER * (Math.PI / 180);
-        const meanAnomaly = rawData.MEAN_ANOMALY * (Math.PI / 180);
-        
-        // set orbit and position
-        satData.orbit = {
-          height: semiMajorAxis * (1 - rawData.ECCENTRICITY) - 1,
-          inclination: inclination,
-          phase: meanAnomaly
-        }
-        satData.position = {
-          latitude: Math.asin(Math.sin(meanAnomaly) * Math.sin(inclination)) * (180 / Math.PI),
-          longitude: Math.atan2(
-            Math.sin(meanAnomaly) * Math.cos(inclination),
-            Math.cos(meanAnomaly)
-          ) * (180 / Math.PI)
-        }
-
         // Create and add the satellite mesh
         const satMesh = createSatelliteMesh(scene, textureLoader, satData);
         
@@ -610,8 +586,8 @@ const Globe: React.FC = () => {
         const z = Math.sin(satData.orbit.phase) * radius * Math.cos(satData.orbit.inclination);
         
         const position = new THREE.Vector3(x, y, z);
-        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), argPerigee);
-        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), raan);
+        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), satData.orbit.argPerigee);
+        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), satData.orbit.raan);
         
         satMesh.mesh.position.copy(position);
         satelliteMeshes.push(satMesh);
