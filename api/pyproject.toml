@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "startracker-api"
+version = "0.3.2"
+description = "Startracker API for AI intelligence"
+authors = ["David Thomason <911671+dtom90@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<=3.13"
+cognee = "^0.1.40"
+google-generativeai = "^0.8.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

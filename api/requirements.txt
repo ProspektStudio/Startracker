@@ -9,3 +9,4 @@ langchain-google-vertexai
 langchain-core
 langgraph
 bs4
+cognee
