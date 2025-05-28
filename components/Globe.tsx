@@ -725,8 +725,7 @@ const Globe: React.FC = () => {
       color: 0xFAC515, // Golden yellow color
       transparent: true,
       opacity: 0, // Start invisible
-      side: THREE.DoubleSide,
-      depthTest: false
+      side: THREE.DoubleSide
     });
     
     const tubeMesh = new THREE.Mesh(tubeGeometry, material);
