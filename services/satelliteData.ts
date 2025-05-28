@@ -74,7 +74,7 @@ const getSatelliteDataFromDB = async (group: string): Promise<CelestrakResponse[
   }
 };
 
-const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse[]> => {
+const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse[] | undefined> => {
   try {
     const response = await fetch(
       `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=json`,
@@ -100,7 +100,7 @@ const fetchSatellitePositions = async (group: string): Promise<CelestrakResponse
     return data;
   } catch (error) {
     console.error('Error fetching satellite positions:', error);
-    return [];
+    return undefined;
   }
 };
 
@@ -112,13 +112,17 @@ const getSatelliteData = async (group: string = 'stations'): Promise<SatelliteDa
     ? cachedData.reduce((min, sat) => Math.min(min, sat.fetchTime.getTime()), Infinity)
     : null;
 
-  let data;
+  let data = cachedData;
   if (oldestFetchTime && oldestFetchTime > Date.now() - STALE_TIME) {
     console.log('Retrieved cached satellite data from Dexie/IndexedDB');
-    data = cachedData;
   } else {
     console.log('Fetching new data.');
-    data = await fetchSatellitePositions(group);
+    const fetchedData = await fetchSatellitePositions(group);
+    if (fetchedData) {
+      data = fetchedData;
+    } else {
+      console.log("Couldn't fetch data, falling back to cache");
+    }
   }
   return data.map(calculateOrbitAndPosition(group));
 };
