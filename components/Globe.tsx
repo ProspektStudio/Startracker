@@ -71,6 +71,9 @@ const Globe: React.FC = () => {
   const GLOBE_RADIUS = 5;
   const SATELLITE_SIZE = 0.15;
   const ORBIT_SPEED = 0.000001;
+  const DEFAULT_COLOR = 0xFFFFFF;
+  const HIGHLIGHT_COLOR = 0x00F900;
+  const SELECTED_COLOR = 0x00FF00;
 
   // Cold start the api server
   useQuery({
@@ -177,11 +180,24 @@ const Globe: React.FC = () => {
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
       const intersects = raycasterRef.current.intersectObjects(satelliteMeshesRef.current.map(sat => sat.mesh));
 
+      // Reset all non-selected satellites to white first
+
+      satelliteMeshesRef.current.forEach(sat => {
+        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatellite?.noradId) {
+          sat.material.color.setHex(DEFAULT_COLOR);
+        }
+      });
+
       if (intersects.length > 0) {
         const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
         if (satelliteData) {
+          // Only change color if it's not the selected satellite
+          if (satelliteData.data.noradId !== selectedSatellite?.noradId) {
+            satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
+          }
+          
           setTooltip({
             visible: true,
             text: satelliteData.data.name,
@@ -247,7 +263,7 @@ const Globe: React.FC = () => {
           orbitLinesRef.current.forEach(line => {
             if (line.material instanceof THREE.MeshBasicMaterial) {
               line.material.opacity = 0;
-              line.material.color.setHex(0xFAC515);
+              line.material.color.setHex(HIGHLIGHT_COLOR);
             }
           });
 
@@ -256,7 +272,7 @@ const Globe: React.FC = () => {
           if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
             const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
             lineMaterial.opacity = 0.8;
-            lineMaterial.color.setHex(0xFAC515);
+            lineMaterial.color.setHex(HIGHLIGHT_COLOR);
           }
 
           // Get the satellite's position for camera movement
@@ -285,17 +301,17 @@ const Globe: React.FC = () => {
           // Store the new orbit line
           setActiveOrbit(orbitLine);
 
-          // Change color to blue
-          const whiteMaterial = new THREE.SpriteMaterial({
+          // Change color to green instead of white
+          const selectedMaterial = new THREE.SpriteMaterial({
             map: clickedSprite.material.map,
-            color: 0xffffff,
+            color: SELECTED_COLOR,
             sizeAttenuation: true,
             transparent: true,
             opacity: 1,
             blending: THREE.NormalBlending
           });
-          clickedSprite.material = whiteMaterial;
-          satelliteData.material = whiteMaterial;
+          clickedSprite.material = selectedMaterial;
+          satelliteData.material = selectedMaterial;
 
           // Calculate the target camera position
           // Position the camera at a fixed distance from the satellite
@@ -607,7 +623,7 @@ const Globe: React.FC = () => {
     
     const spriteMaterial = new THREE.SpriteMaterial({ 
       map: satelliteTexture,
-      color: 0xffffff,
+      color: DEFAULT_COLOR,
       sizeAttenuation: true
     });
     
@@ -630,7 +646,7 @@ const Globe: React.FC = () => {
 
     // Reset all satellites to white
     satelliteMeshesRef.current.forEach(sat => {
-      sat.material.color.setHex(0xffffff);
+      sat.material.color.setHex(DEFAULT_COLOR);
     });
 
     // Disable controls during animation
@@ -715,17 +731,22 @@ const Globe: React.FC = () => {
     const tubeGeometry = new THREE.TubeGeometry(
       curve,
       segments,
-      0.02, // tube radius
-      8,    // radial segments
-      false // closed
+      0.02,
+      16,
+      false
     );
     
     // Create material for the tube
     const material = new THREE.MeshBasicMaterial({
-      color: 0xFAC515, // Golden yellow color
+      color: HIGHLIGHT_COLOR, // Green color
       transparent: true,
       opacity: 0, // Start invisible
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
     });
     
     const tubeMesh = new THREE.Mesh(tubeGeometry, material);
@@ -750,7 +771,7 @@ const Globe: React.FC = () => {
       orbitLinesRef.current.forEach(line => {
         if (line.material instanceof THREE.MeshBasicMaterial) {
           line.material.opacity = 0;
-          line.material.color.setHex(0xFAC515);
+          line.material.color.setHex(HIGHLIGHT_COLOR);
         }
       });
 
@@ -759,7 +780,7 @@ const Globe: React.FC = () => {
       if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
         const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
         lineMaterial.opacity = 0.8;
-        lineMaterial.color.setHex(0xFAC515);
+        lineMaterial.color.setHex(HIGHLIGHT_COLOR);
       }
 
       // Get the satellite's position
