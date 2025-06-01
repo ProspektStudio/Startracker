@@ -1,5 +1,4 @@
 import Head from 'next/head';
-import SatelliteMenu from '@/components/SatelliteMenu';
 import Globe from '@/components/Globe';
 import SidePanel from '@/components/SidePanel';
 
@@ -14,7 +13,6 @@ export default function Home() {
       </Head>
 
       <main className="flex h-screen w-screen">
-        <SatelliteMenu />
         <Globe />
         <SidePanel />
       </main>

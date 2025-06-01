@@ -1,22 +1,20 @@
 import useClientStore from '@/services/clientStore';
-import { SatelliteData } from '@/services/types';
 
 const CurrentlyViewing: React.FC = () => {
+  const { selectedGroup, satellites, selectedSatellite, setSelectedGroup, setSelectedSatellite } = useClientStore();
 
-  const { selectedGroup, selectedSatellite } = useClientStore();
-
-  // Get the group name from the group value
-  const getGroupName = (value: string) => {
-    const groups = [
-      { name: 'Space Stations', value: 'stations' },
-      { name: 'Globalstar', value: 'globalstar' },
-      { name: 'Intelsat', value: 'intelsat' }
-    ];
-    return groups.find(g => g.value === value)?.name || value;
-  };
+  const groups = [
+    { name: 'Space Stations', value: 'stations' },
+    { name: 'Globalstar', value: 'globalstar' },
+    { name: 'Intelsat', value: 'intelsat' }
+  ];
 
   // Only show if a group is selected
   if (!selectedGroup) return null;
+
+  const onSatelliteSelect = (noradId: number) => {
+    setSelectedSatellite(satellites.find(satellite => satellite.noradId === noradId) || null);
+  };
 
   return (
     <div>
@@ -24,7 +22,6 @@ const CurrentlyViewing: React.FC = () => {
         style={{
           background: 'rgba(0, 0, 0, 0.3)',
           backdropFilter: 'blur(10px)',
-          padding: '12px 16px',
           display: 'flex',
           flexDirection: 'column',
           gap: '4px',
@@ -38,20 +35,58 @@ const CurrentlyViewing: React.FC = () => {
             color: '#969696',
             marginRight: '8px'
           }}>
-            Currently Viewing:
+            Current Group:
           </span>
-          <span>
-            {getGroupName(selectedGroup)}
-          </span>
+          <select
+            value={selectedGroup}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+            style={{
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#FFFFFF',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontFamily: 'Shentox, sans-serif',
+              cursor: 'pointer'
+            }}
+          >
+            {groups.map((group) => (
+              <option key={group.value} value={group.value}>
+                {group.name}
+              </option>
+            ))}
+          </select>
         </div>
-        {selectedSatellite && (
-          <div style={{ 
-            fontSize: '14px',
-            color: '#969696'
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ 
+            color: '#969696',
+            marginRight: '8px'
           }}>
-            Selected: <span style={{ color: '#FFFFFF' }}>{selectedSatellite.name}</span>
-          </div>
-        )}
+            Selected Satellite:
+          </span>
+          <select
+            value={selectedSatellite?.noradId}
+            onChange={(e) => onSatelliteSelect(Number(e.target.value))}
+            style={{
+              background: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#FFFFFF',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontFamily: 'Shentox, sans-serif',
+              cursor: 'pointer'
+            }}
+          >
+            <option value=""></option>
+            {satellites.map((satellite) => (
+              <option key={satellite.noradId} value={satellite.noradId}>
+                {satellite.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );
