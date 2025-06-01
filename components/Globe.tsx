@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import getSatelliteData from '@/services/data';
+import getSatelliteData from '@/services/satelliteData';
 import { SatelliteData } from '@/services/types';
 import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
-import SatelliteMenu from './SatelliteMenu';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import useClientStore from '@/services/clientStore';
@@ -34,56 +33,52 @@ interface PopupState {
 }
 
 const Globe: React.FC = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    selectedGroup,
+    selectedSatellite,
+    setSatellites,
+    setSelectedSatellite
+  } = useClientStore();
+
+  // State
   const [scene, setScene] = useState<THREE.Scene | null>(null);
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
-  const [globe, setGlobe] = useState<THREE.Mesh | null>(null);
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
   const [isPopupVisible, setIsPopupVisible] = useState(false);
-  const [gettingInfo, setGettingInfo] = useState(false);
-  const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
-  const [satelliteMeshes, setSatelliteMeshes] = useState<SatelliteMesh[]>([]);
+  const [fps, setFps] = useState<number>(0);
+  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
+
+  // Refs
+  const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
-  const lastUpdateRef = useRef<number | null>(null);
   const satelliteMeshesRef = useRef<SatelliteMesh[]>([]);
-  const [fps, setFps] = useState<number>(0);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef<number>(performance.now());
-
-  const { selectedGroup, selectedSatellite, setSelectedSatellite } = useClientStore();
+  const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
+  const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
+  const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
+  const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
+  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
 
   // Constants
   const GLOBE_RADIUS = 5;
   const SATELLITE_SIZE = 0.15;
   const ORBIT_SPEED = 0.000001;
+  const DEFAULT_COLOR = 0xFFFFFF;
+  const HIGHLIGHT_COLOR = 0x00F900;
+  const SELECTED_COLOR = 0x00FF00;
 
-  // Add initial camera position reference
-  const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
-  const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
-
-  // Add orbit line state
-  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
-
-  // Add refs for event handlers
-  const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
-  const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
-
-  // Add orbit lines ref
-  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
-
+  // Cold start the api server
   useQuery({
     queryKey: ['hello'],
-    queryFn: async () => {
-      const data = await apiClient.get('/api/hello');
-      console.log(data);
-      return data;
-    }
+    queryFn: apiClient.hello
   });
 
   // Setup Three.js scene
@@ -170,7 +165,6 @@ const Globe: React.FC = () => {
     setScene(newScene);
     setCamera(newCamera);
     setRenderer(newRenderer);
-    setGlobe(newGlobe);
     setControls(newControls);
 
     // Define event handlers
@@ -186,11 +180,24 @@ const Globe: React.FC = () => {
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
       const intersects = raycasterRef.current.intersectObjects(satelliteMeshesRef.current.map(sat => sat.mesh));
 
+      // Reset all non-selected satellites to white first
+
+      satelliteMeshesRef.current.forEach(sat => {
+        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatellite?.noradId) {
+          sat.material.color.setHex(DEFAULT_COLOR);
+        }
+      });
+
       if (intersects.length > 0) {
         const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
         if (satelliteData) {
+          // Only change color if it's not the selected satellite
+          if (satelliteData.data.noradId !== selectedSatellite?.noradId) {
+            satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
+          }
+          
           setTooltip({
             visible: true,
             text: satelliteData.data.name,
@@ -256,7 +263,7 @@ const Globe: React.FC = () => {
           orbitLinesRef.current.forEach(line => {
             if (line.material instanceof THREE.MeshBasicMaterial) {
               line.material.opacity = 0;
-              line.material.color.setHex(0xFAC515);
+              line.material.color.setHex(HIGHLIGHT_COLOR);
             }
           });
 
@@ -265,7 +272,7 @@ const Globe: React.FC = () => {
           if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
             const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
             lineMaterial.opacity = 0.8;
-            lineMaterial.color.setHex(0xFAC515);
+            lineMaterial.color.setHex(HIGHLIGHT_COLOR);
           }
 
           // Get the satellite's position for camera movement
@@ -294,17 +301,17 @@ const Globe: React.FC = () => {
           // Store the new orbit line
           setActiveOrbit(orbitLine);
 
-          // Change color to blue
-          const whiteMaterial = new THREE.SpriteMaterial({
+          // Change color to green instead of white
+          const selectedMaterial = new THREE.SpriteMaterial({
             map: clickedSprite.material.map,
-            color: 0xffffff,
+            color: SELECTED_COLOR,
             sizeAttenuation: true,
             transparent: true,
             opacity: 1,
             blending: THREE.NormalBlending
           });
-          clickedSprite.material = whiteMaterial;
-          satelliteData.material = whiteMaterial;
+          clickedSprite.material = selectedMaterial;
+          satelliteData.material = selectedMaterial;
 
           // Calculate the target camera position
           // Position the camera at a fixed distance from the satellite
@@ -425,11 +432,11 @@ const Globe: React.FC = () => {
 
     // Create satellites
     createSatellites(newScene, textureLoader, activeGroup)
-        .then(allSatellites => {
-          // Add event listeners after satellites are created
-          newRenderer.domElement.addEventListener('mousemove', onMouseMove);
-          newRenderer.domElement.addEventListener('click', handleClick);
-        });
+      .then(() => {
+        // Add event listeners after satellites are created
+        newRenderer.domElement.addEventListener('mousemove', onMouseMove);
+        newRenderer.domElement.addEventListener('click', handleClick);
+      });
 
     // Animation loop
     const animate = () => {
@@ -557,7 +564,6 @@ const Globe: React.FC = () => {
       const textureLoader = new THREE.TextureLoader();
       const newSatelliteMeshes = await createSatellites(scene, textureLoader, group);
       satelliteMeshesRef.current = newSatelliteMeshes;
-      setSatelliteMeshes(newSatelliteMeshes);
     }
   };
 
@@ -617,7 +623,7 @@ const Globe: React.FC = () => {
     
     const spriteMaterial = new THREE.SpriteMaterial({ 
       map: satelliteTexture,
-      color: 0xffffff,
+      color: DEFAULT_COLOR,
       sizeAttenuation: true
     });
     
@@ -640,7 +646,7 @@ const Globe: React.FC = () => {
 
     // Reset all satellites to white
     satelliteMeshesRef.current.forEach(sat => {
-      sat.material.color.setHex(0xffffff);
+      sat.material.color.setHex(DEFAULT_COLOR);
     });
 
     // Disable controls during animation
@@ -725,18 +731,22 @@ const Globe: React.FC = () => {
     const tubeGeometry = new THREE.TubeGeometry(
       curve,
       segments,
-      0.02, // tube radius
-      8,    // radial segments
-      false // closed
+      0.02,
+      16,
+      false
     );
     
     // Create material for the tube
     const material = new THREE.MeshBasicMaterial({
-      color: 0xFAC515, // Golden yellow color
+      color: HIGHLIGHT_COLOR, // Green color
       transparent: true,
       opacity: 0, // Start invisible
       side: THREE.DoubleSide,
-      depthTest: false
+      depthTest: true,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
     });
     
     const tubeMesh = new THREE.Mesh(tubeGeometry, material);
@@ -761,7 +771,7 @@ const Globe: React.FC = () => {
       orbitLinesRef.current.forEach(line => {
         if (line.material instanceof THREE.MeshBasicMaterial) {
           line.material.opacity = 0;
-          line.material.color.setHex(0xFAC515);
+          line.material.color.setHex(HIGHLIGHT_COLOR);
         }
       });
 
@@ -770,7 +780,7 @@ const Globe: React.FC = () => {
       if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
         const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
         lineMaterial.opacity = 0.8;
-        lineMaterial.color.setHex(0xFAC515);
+        lineMaterial.color.setHex(HIGHLIGHT_COLOR);
       }
 
       // Get the satellite's position
@@ -880,12 +890,6 @@ const Globe: React.FC = () => {
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
 
-      <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
-        <SatelliteMenu 
-          satellites={satellites}
-        />
-      </div>
-      
       <div style={{
         position: 'absolute',
         bottom: '20px',
@@ -964,7 +968,6 @@ const Globe: React.FC = () => {
           x={popup.x}
           y={popup.y}
           isVisible={isPopupVisible}
-          setGettingInfo={setGettingInfo}
         />
       )}
     </div>

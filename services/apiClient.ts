@@ -1,10 +1,24 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.startracker.app';
 
-export default {
-
-  async get(path: string) {
+const get = async(path: string) => {
+  try {
     const res = await fetch(`${API_URL}${path}`);
     return res.json();
+  } catch (e) {
+    console.error(`Error during get ${path}: `, e)
+  }
+}
+
+export default {
+
+  async hello () {
+    try {
+      const data = await get('/api/hello');
+      console.log(data);
+      return data;
+    } catch (e) {
+      console.error(e)
+    }
   },
 
   async streamSatelliteInfo(agent: string, group: string, name: string, onChunk: (chunk: string) => void) {

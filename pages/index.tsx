@@ -1,6 +1,6 @@
 import Head from 'next/head';
-import SidePanel from '@/components/SidePanel';
 import Globe from '@/components/Globe';
+import SidePanel from '@/components/SidePanel';
 
 export default function Home() {
 

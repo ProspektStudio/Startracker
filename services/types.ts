@@ -1,24 +1,5 @@
-interface SatelliteData {
-  name: string;
-  noradId: number;
-  group: string;
-  orbit: {
-    height: number;
-    inclination: number;
-    phase: number;
-    argPerigee: number;
-    raan: number;
-  },
-  position?: {
-    latitude: number;
-    longitude: number;
-  },
-  rawData: CelestrakResponse;
-}
 
-export type { SatelliteData };
-
-export interface CelestrakResponse {
+interface CelestrakResponse {
   NORAD_CAT_ID: number;
   OBJECT_ID: string;
   OBJECT_NAME: string;
@@ -38,3 +19,23 @@ export interface CelestrakResponse {
   MEAN_MOTION_DDOT: number;
   fetchTime: Date;
 }
+
+interface SatelliteData {
+  name: string;
+  noradId: number;
+  group: string;
+  orbit: {
+    height: number;
+    inclination: number;
+    phase: number;
+    argPerigee: number;
+    raan: number;
+  },
+  position?: {
+    latitude: number;
+    longitude: number;
+  },
+  rawData: CelestrakResponse;
+}
+
+export type { CelestrakResponse, SatelliteData };

@@ -56,7 +56,7 @@ const SidePanel: React.FC = () => {
                 onMouseLeave={() => setIsHovered(false)}
                 style={{
                   width: 'calc(100% - 48px)',
-                  margin: '0 24px 16px 24px',
+                  marginBottom: '16px',
                   padding: '8px 16px',
                   background: isHovered ? 'rgba(59, 130, 246, 0.9)' : 'rgba(59, 130, 246, 0.8)',
                   border: '1px solid rgba(147, 197, 253, 0.3)',
@@ -153,7 +153,7 @@ const SidePanel: React.FC = () => {
           height: 100%;
           background: rgba(25, 25, 25, 0.85);
           color: white;
-          padding: 20px;
+          padding: 32px;
           box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
           z-index: 1000;
           overflow-y: auto;
