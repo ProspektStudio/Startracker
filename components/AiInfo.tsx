@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import Spinner from './Spinner';
 import apiClient from '@/services/apiClient';
@@ -12,14 +12,24 @@ interface AiInfoProps {
 }
 
 const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
-  const [satelliteInfo, setSatelliteInfo] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  if (!selectedSatellite) return null;
+
   const [agent, setAgent] = useState<string>('gemini');
   const [isHovered, setIsHovered] = useState(false);
-  const [isGettingInfo, setIsGettingInfo] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [geminiSatelliteInfo, setGeminiSatelliteInfo] = useState<string>('');
+  const [ragSatelliteInfo, setRagSatelliteInfo] = useState<string>('');
+
+  const satelliteInfo = agent === 'gemini' ? geminiSatelliteInfo : ragSatelliteInfo;
+  const setSatelliteInfo = agent === 'gemini' ? setGeminiSatelliteInfo : setRagSatelliteInfo;
+
+  useEffect(() => {
+    setGeminiSatelliteInfo('');
+    setRagSatelliteInfo('');
+  }, [selectedSatellite]);
 
   const fetchSatelliteInfoInChuncks = async (): Promise<void> => {
-    setSatelliteInfo('');
     setIsLoading(true);
     if (!selectedSatellite) return;
     try {
@@ -34,25 +44,71 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
     }
   };
 
-  React.useEffect(() => {
-    setIsGettingInfo(false);
-    setSatelliteInfo('');
-  }, [selectedSatellite]);
-
-  React.useEffect(() => {
-    if (isGettingInfo) {
-      fetchSatelliteInfoInChuncks();
-    }
-  }, [isGettingInfo]);
-
-  if (!selectedSatellite) return null;
-
   return (
     <>
-      {!isGettingInfo && (
-        <p>
+      <div className="toggle-buttons">
+        <button
+          className={`toggle-button ${agent === 'gemini' ? 'active' : ''}`}
+          onClick={() => setAgent('gemini')}
+        >
+          Gemini
+        </button>
+        <button
+          className={`toggle-button ${agent === 'rag' ? 'active' : ''}`}
+          onClick={() => setAgent('rag')}
+        >
+          RAG
+        </button>
+      </div>
+      <p>
+        <b>{agent === 'gemini' ? 'Google Gemini 2.0 Flash' : 'Retrieval Augmented Generation'}</b>
+        <span 
+          style={{ 
+            marginLeft: '8px', 
+            cursor: 'help',
+            position: 'relative',
+            display: 'inline-block'
+          }} 
+          onMouseEnter={(e) => {
+            const tooltip = document.createElement('div');
+            tooltip.style.cssText = `
+              position: absolute;
+              bottom: 100%;
+              left: 50%;
+              transform: translateX(${agent === 'gemini' ? '-50%' : '-60%'});
+              padding: 8px;
+              background: rgba(0, 0, 0, 0.8);
+              color: white;
+              border-radius: 4px;
+              font-size: 12px;
+              z-index: 1000;
+              pointer-events: none;
+              width: 300px;
+            `;
+            tooltip.textContent = `${agent === 'gemini' 
+              ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
+              : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
+            e.currentTarget.appendChild(tooltip);
+          }}
+          onMouseLeave={(e) => {
+            const tooltip = e.currentTarget.querySelector('div');
+            if (tooltip) {
+              tooltip.remove();
+            }
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 16v-4"></path>
+            <path d="M12 8h.01"></path>
+          </svg>
+        </span>
+      </p>
+
+      {!satelliteInfo && !isLoading && (
+        <p className="mt-4">
           <button 
-            onClick={() => setIsGettingInfo(true)}
+            onClick={() => fetchSatelliteInfoInChuncks()}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{
@@ -74,69 +130,6 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
             Get AI-Powered Satellite Info
           </button>
         </p>
-      )}
-
-      {isGettingInfo && (
-        <>
-          <div className="toggle-buttons">
-            <button
-              className={`toggle-button ${agent === 'gemini' ? 'active' : ''}`}
-              onClick={() => setAgent('gemini')}
-            >
-              Gemini
-            </button>
-            <button
-              className={`toggle-button ${agent === 'rag' ? 'active' : ''}`}
-              onClick={() => setAgent('rag')}
-            >
-              RAG
-            </button>
-          </div>
-          <p>
-            <b>{agent === 'gemini' ? 'Google Gemini 2.0 Flash' : 'Retrieval Augmented Generation'}</b>
-            <span 
-              style={{ 
-                marginLeft: '8px', 
-                cursor: 'help',
-                position: 'relative',
-                display: 'inline-block'
-              }} 
-              onMouseEnter={(e) => {
-                const tooltip = document.createElement('div');
-                tooltip.style.cssText = `
-                  position: absolute;
-                  bottom: 100%;
-                  left: 50%;
-                  transform: translateX(${agent === 'gemini' ? '-50%' : '-60%'});
-                  padding: 8px;
-                  background: rgba(0, 0, 0, 0.8);
-                  color: white;
-                  border-radius: 4px;
-                  font-size: 12px;
-                  z-index: 1000;
-                  pointer-events: none;
-                  width: 300px;
-                `;
-                tooltip.textContent = `${agent === 'gemini' 
-                  ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
-                  : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
-                e.currentTarget.appendChild(tooltip);
-              }}
-              onMouseLeave={(e) => {
-                const tooltip = e.currentTarget.querySelector('div');
-                if (tooltip) {
-                  tooltip.remove();
-                }
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 16v-4"></path>
-                <path d="M12 8h.01"></path>
-              </svg>
-            </span>
-          </p>
-        </>
       )}
 
       <div className="satellite-info">
