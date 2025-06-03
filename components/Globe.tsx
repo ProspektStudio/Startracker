@@ -94,9 +94,16 @@ const Globe: React.FC = () => {
       1000
     );
 
+    // Ensure container is mounted and has dimensions
+    if (!containerRef.current || containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) {
+      console.warn('Container not ready for WebGLRenderer initialization');
+      return;
+    }
+
     const newRenderer = new THREE.WebGLRenderer({ 
       antialias: true,
-      alpha: true 
+      alpha: true,
+      powerPreference: 'high-performance'
     });
 
     // Set initial size
