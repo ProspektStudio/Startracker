@@ -16,15 +16,15 @@ def generate_prompt(group: str, name: str):
 
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-def gemini_content_stream(prompt: str):
+def gemini_content_stream(group: str, name: str):
+  prompt = generate_prompt(group, name)
+
   return gemini_client.models.generate_content_stream(
       model=GEMINI_MODEL,
       contents=prompt
   )
 
 # RAG Agent Config
-
-topic = 'Satellites'
 
 embeddings_model = "text-embedding-004"
 webpage_documents = [
@@ -39,9 +39,14 @@ webpage_documents = [
 llm_model_provider = "google_genai"
 
 rag_satellite_agent = RagAgent(
-    topic=topic,
+    topic='Satellites',
     embeddings_model=embeddings_model,
     webpage_documents=webpage_documents,
     llm_model=GEMINI_MODEL,
     llm_model_provider=llm_model_provider
 )
+
+def rag_content_stream(group: str, name: str):
+  prompt = generate_prompt(group, name)
+
+  return rag_satellite_agent.ask(prompt)

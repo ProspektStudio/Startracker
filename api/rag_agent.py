@@ -16,11 +16,11 @@ logger = uvicorn_logging.getLogger("uvicorn")
 class RagAgent:
     def __init__(
         self,
-        topic,
-        embeddings_model=None,
-        webpage_documents=None,
-        llm_model=None,
-        llm_model_provider=None,
+        topic: str,
+        embeddings_model: str = None,
+        webpage_documents: list[str] = None,
+        llm_model: str = None,
+        llm_model_provider: str = None,
     ):
         self.topic = topic
         self.system_prompt = """You are an expert in the topic of {topic} and you are here to answer any questions you have regarding the topic.
@@ -89,10 +89,11 @@ Context: {context}:"""
             checkpointer=self.memory
         )
 
-    def ask(self, query):
+    def ask(self, prompt: str):
         """Ask the agent the given query."""
+
         return self.agent_executor.stream(
-            {"messages": [{"role": "user", "content": query}]},
+            {"messages": [{"role": "user", "content": prompt}]},
             stream_mode="values",
             config=self.config
         )

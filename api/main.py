@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 import asyncio
 from uvicorn.logging import logging as uvicorn_logging
 from langchain.schema import AIMessage
-from models import generate_prompt, gemini_content_stream, rag_satellite_agent
+from models import gemini_content_stream, rag_content_stream
 logger = uvicorn_logging.getLogger("uvicorn")
 
 app = FastAPI()
@@ -27,11 +27,9 @@ async def get_satellite_info_llm(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
 ):
-    prompt = generate_prompt(group, name)
-
-    async def generate_satellite_info_stream(prompt):
+    async def generate_satellite_info_stream():
         try:
-            for chunk in gemini_content_stream(prompt):
+            for chunk in gemini_content_stream(group, name):
                 if chunk.text:
                     yield chunk.text
                     await asyncio.sleep(0) # Simulate work and allow event loop to switch
@@ -40,7 +38,7 @@ async def get_satellite_info_llm(
             yield f"Error: {e}\n\n"
 
     return StreamingResponse(
-        generate_satellite_info_stream(prompt),
+        generate_satellite_info_stream(),
         media_type="text/event-stream"
     )
 
@@ -49,11 +47,9 @@ async def get_satellite_info_rag(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
 ):
-    prompt = generate_prompt(group, name)
-
-    async def generate_satellite_info_stream(prompt):
+    async def generate_satellite_info_stream():
         try:
-            for chunk in rag_satellite_agent.ask(prompt):
+            for chunk in rag_content_stream(group, name):
                 if "messages" in chunk and chunk["messages"]:
                     message = chunk["messages"][-1]
                     if isinstance(message, AIMessage) or (isinstance(message, dict) and message.get("role") == "assistant"):
@@ -64,6 +60,6 @@ async def get_satellite_info_rag(
             yield f"Error: {e}\n\n"
 
     return StreamingResponse(
-        generate_satellite_info_stream(prompt),
+        generate_satellite_info_stream(),
         media_type="text/event-stream"
     )
