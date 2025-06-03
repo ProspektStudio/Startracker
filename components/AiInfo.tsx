@@ -11,21 +11,32 @@ interface AiInfoProps {
   } | null;
 }
 
+const agentInfo: Record<string, { name: string; description: string }> = {
+  llm: {
+    name: 'Large Language Model',
+    description: 'Large language model Gemini 2.0 Flash is a model that can generate text responses.',
+  },
+  rag: {
+    name: 'Retrieval Augmented Generation',
+    description: "Retrieval Augmented Generation (RAG) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information.",
+  },
+}
+
 const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
 
   if (!selectedSatellite) return null;
 
-  const [agent, setAgent] = useState<string>('gemini');
+  const [agent, setAgent] = useState<keyof typeof agentInfo>('llm');
   const [isHovered, setIsHovered] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [geminiSatelliteInfo, setGeminiSatelliteInfo] = useState<string>('');
+  const [llmSatelliteInfo, setLlmSatelliteInfo] = useState<string>('');
   const [ragSatelliteInfo, setRagSatelliteInfo] = useState<string>('');
 
-  const satelliteInfo = agent === 'gemini' ? geminiSatelliteInfo : ragSatelliteInfo;
-  const setSatelliteInfo = agent === 'gemini' ? setGeminiSatelliteInfo : setRagSatelliteInfo;
+  const satelliteInfo = agent === 'llm' ? llmSatelliteInfo : ragSatelliteInfo;
+  const setSatelliteInfo = agent === 'llm' ? setLlmSatelliteInfo : setRagSatelliteInfo;
 
   useEffect(() => {
-    setGeminiSatelliteInfo('');
+    setLlmSatelliteInfo('');
     setRagSatelliteInfo('');
   }, [selectedSatellite]);
 
@@ -47,21 +58,18 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
   return (
     <>
       <div className="toggle-buttons">
-        <button
-          className={`toggle-button ${agent === 'gemini' ? 'active' : ''}`}
-          onClick={() => setAgent('gemini')}
-        >
-          Gemini
-        </button>
-        <button
-          className={`toggle-button ${agent === 'rag' ? 'active' : ''}`}
-          onClick={() => setAgent('rag')}
-        >
-          RAG
-        </button>
+        {Object.entries(agentInfo).map(([key, value]) => (
+          <button
+            key={key}
+            className={`toggle-button w-full ${agent === key ? 'active' : ''}`}
+            onClick={() => setAgent(key)}
+          >
+            {key.toUpperCase()}
+          </button>
+        ))}
       </div>
-      <p>
-        <b>{agent === 'gemini' ? 'Google Gemini 2.0 Flash' : 'Retrieval Augmented Generation'}</b>
+      <p className="flex justify-center">
+        <b>{agentInfo[agent].name}</b>
         <span 
           style={{ 
             marginLeft: '8px', 
@@ -85,9 +93,7 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
               pointer-events: none;
               width: 300px;
             `;
-            tooltip.textContent = `${agent === 'gemini' 
-              ? 'Gemini 2.0 Flash is a large language model that can generate text responses.' 
-              : "RAG (Retrieval Augmented Generation) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information."}`;
+            tooltip.textContent = `${agentInfo[agent].description}`;
             e.currentTarget.appendChild(tooltip);
           }}
           onMouseLeave={(e) => {
@@ -112,7 +118,7 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{
-              width: 'calc(100% - 48px)',
+              width: '100%',
               marginBottom: '16px',
               padding: '8px 16px',
               background: isHovered ? 'rgba(59, 130, 246, 0.9)' : 'rgba(59, 130, 246, 0.8)',

@@ -37,7 +37,7 @@ const CurrentlyViewing: React.FC = () => {
         options={satelliteOptions}
         value={selectedSatellite?.noradId.toString() || ''}
         onChange={(value) => onSatelliteSelect(Number(value))}
-        placeholder="Satellites"
+        placeholder="Select a Satellite"
       />
 
       <style jsx>{`

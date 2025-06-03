@@ -42,8 +42,8 @@ async def get_satellite_info(
         "satellite_info": response.text
     }
 
-@app.get("/api/satellite-info-gemini")
-async def get_satellite_info_stream(
+@app.get("/api/satellite-info-llm")
+async def get_satellite_info_llm(
     group: str = Query(..., min_length=1, max_length=50),
     name: str = Query(..., min_length=1, max_length=50)
 ):
