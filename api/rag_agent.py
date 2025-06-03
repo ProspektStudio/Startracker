@@ -10,27 +10,8 @@ from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from uvicorn.logging import logging as uvicorn_logging
-from dotenv import load_dotenv
 
-load_dotenv()
 logger = uvicorn_logging.getLogger("uvicorn")
-
-# RagAgent Config
-
-topic = 'Satellites'
-
-embeddings_model = "text-embedding-004"
-webpage_documents = [
-    'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite',
-    'https://www.spacex.com/vehicles/dragon/',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
-    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
-]
-
-llm_model_provider = "google_genai"
-llm_model = "gemini-2.0-flash"
 
 class RagAgent:
     def __init__(
@@ -115,11 +96,3 @@ Context: {context}:"""
             stream_mode="values",
             config=self.config
         )
-
-rag_satellite_agent = RagAgent(
-    topic=topic,
-    embeddings_model=embeddings_model,
-    webpage_documents=webpage_documents,
-    llm_model=llm_model,
-    llm_model_provider=llm_model_provider
-)
