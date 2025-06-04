@@ -6,7 +6,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/satelliteData';
 import { SatelliteData } from '@/services/types';
 import FPSCounter from './FPSCounter';
-import SatellitePopup from './SatellitePopup';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import useClientStore from '@/hooks/useClientStore';
@@ -200,11 +199,8 @@ const Globe: React.FC = () => {
         const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
-        if (satelliteData) {
-          // Only change color if it's not the selected satellite
-          if (satelliteData.data.noradId !== selectedSatellite?.noradId) {
-            satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
-          }
+        if (satelliteData && satelliteData.data.noradId !== selectedSatellite?.noradId) {
+          satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
           
           setTooltip({
             visible: true,
@@ -958,33 +954,36 @@ const Globe: React.FC = () => {
       </div>
 
       {tooltip.visible && (
-        <div
-          style={{
-            position: 'absolute',
-            left: tooltip.x,
-            top: tooltip.y,
-            background: 'rgba(0, 0, 0, 0.8)',
-            color: 'white',
-            padding: '5px 10px',
-            borderRadius: '4px',
-            fontSize: '14px',
-            pointerEvents: 'none',
-            zIndex: 1000,
-            transform: 'translate(-50%, -100%)'
-          }}
-        >
-          {tooltip.text}
-        </div>
+        <Tooltip text={tooltip.text} x={tooltip.x} y={tooltip.y} />
       )}
       
-      {popup.visible && popup.data && (
-        <SatellitePopup
-          data={popup.data}
-          x={popup.x}
-          y={popup.y}
-          isVisible={isPopupVisible}
-        />
+      {isPopupVisible && popup.visible && popup.data && (
+        <Tooltip text={popup.data.name} x={popup.x} y={popup.y} selectedTooltip={true} />
       )}
+    </div>
+  );
+};
+
+const Tooltip = ({ text, x, y, selectedTooltip }: { text: string, x: number, y: number, selectedTooltip?: boolean }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '5px 10px',
+        borderRadius: '4px',
+        border: '1px solid rgba(255, 255, 255)',
+        borderColor: selectedTooltip ? 'green' : 'rgba(255, 255, 255)',
+        fontSize: '14px',
+        pointerEvents: 'none',
+        zIndex: 1000,
+        transform: selectedTooltip ? '0' : 'translate(-50%, -100%)'
+      }}
+    >
+      {text}
     </div>
   );
 };
