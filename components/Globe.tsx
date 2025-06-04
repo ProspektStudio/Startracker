@@ -48,7 +48,6 @@ const Globe: React.FC = () => {
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
-  const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [fps, setFps] = useState<number>(0);
   const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
 
@@ -380,7 +379,7 @@ const Globe: React.FC = () => {
     handleClickRef.current = handleClick;
 
     // Create satellites
-    createSatellites(newScene, textureLoader, activeGroup)
+    createSatellites(newScene, textureLoader)
       .then(() => {
         // Add event listeners after satellites are created
         newRenderer.domElement.addEventListener('mousemove', onMouseMove);
@@ -480,12 +479,7 @@ const Globe: React.FC = () => {
   }, []);
 
   const handleGroupSelect = async (group: string) => {
-    setSelectedSatellite(null); // Clear selected satellite when changing groups
-    // If clicking the same group, do nothing
-    if (group === activeGroup) return;
-    
-    setActiveGroup(group);
-    
+
     // Hide the popup immediately
     setTimeout(() => {
       setPopup({ visible: false, data: null, x: 0, y: 0 });
@@ -510,7 +504,7 @@ const Globe: React.FC = () => {
     // Create new satellites for the selected group
     if (scene) {
       const textureLoader = new THREE.TextureLoader();
-      const newSatelliteMeshes = await createSatellites(scene, textureLoader, group);
+      const newSatelliteMeshes = await createSatellites(scene, textureLoader);
       satelliteMeshesRef.current = newSatelliteMeshes;
     }
   };
@@ -519,9 +513,9 @@ const Globe: React.FC = () => {
     handleGroupSelect(selectedGroup);
   }, [selectedGroup]);
 
-  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader, group: string): Promise<SatelliteMesh[]> => {
+  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
     try {
-      const satelliteData = await getSatelliteData(group);
+      const satelliteData = await getSatelliteData(selectedGroup);
       const satelliteMeshes: SatelliteMesh[] = [];
       const orbitLines: THREE.Mesh[] = [];
       

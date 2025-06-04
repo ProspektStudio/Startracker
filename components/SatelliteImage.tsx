@@ -21,48 +21,17 @@ const SatelliteImage: React.FC<SatelliteImageProps> = ({ selectedSatellite }) =>
   };
 
   return (
-    <div className="satellite-image-container">
+    <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/20 relative">
       <img 
         src={getSatelliteImage()} 
         alt={`${selectedSatellite.name} satellite`}
-        className="satellite-image"
+        className="w-full h-full object-cover"
       />
-      <div className="satellite-name">
+      <div className="absolute bottom-4 left-0 right-0 px-6 text-white text-base font-semibold text-center font-inter [text-shadow:_0_0_10px_rgba(0,0,0,1),_0_0_20px_rgba(0,0,0,1),_0_0_30px_rgba(0,0,0,1),_0_0_40px_rgba(0,0,0,1)]">
         {selectedSatellite.name}
       </div>
-      
-      <style jsx>{`
-        .satellite-image-container {
-          width: 100%;
-          aspect-ratio: 16/9;
-          border-radius: 8px;
-          overflow: hidden;
-          background: rgba(0, 0, 0, 0.2);
-          position: relative;
-        }
-
-        .satellite-image {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .satellite-name {
-          position: absolute;
-          bottom: 16px;
-          left: 0;
-          right: 0;
-          padding: 0 24px;
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-          text-align: center;
-          font-family: 'Inter', sans-serif;
-        }
-      `}</style>
     </div>
   );
 };
 
-export default SatelliteImage; 
+export default SatelliteImage;

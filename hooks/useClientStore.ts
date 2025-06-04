@@ -2,20 +2,28 @@ import { create } from 'zustand';
 import { SatelliteData } from '../services/types';
 
 interface ClientState {
-  satellites: SatelliteData[];
   selectedGroup: string;
+  satellites: SatelliteData[];
   selectedSatellite: SatelliteData | null;
-  setSatellites: (satellites: SatelliteData[]) => void;
   setSelectedGroup: (group: string) => void;
+  setSatellites: (satellites: SatelliteData[]) => void;
   setSelectedSatellite: (satellite: SatelliteData | null) => void;
 }
 
-const useClientStore = create<ClientState>()((set) => ({
-  satellites: [],
+const useClientStore = create<ClientState>()((set, get) => ({
   selectedGroup: 'stations', // Default to stations group
+  satellites: [],
   selectedSatellite: null,
+  setSelectedGroup: (group) => {
+    if (group !== get().selectedGroup) {
+      set({ 
+        selectedSatellite: null,
+        satellites: []
+      });
+      set({ selectedGroup: group });
+    }
+  },
   setSatellites: (satellites) => set({ satellites: satellites }),
-  setSelectedGroup: (group) => set({ selectedGroup: group }),
   setSelectedSatellite: (satellite) => set({ selectedSatellite: satellite }),
 }));
 

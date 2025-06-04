@@ -24,7 +24,7 @@ const SidePanel: React.FC = () => {
         <>
           <hr className="border-white/20"/>
           
-          <section className="p-4">
+          <section className="py-4 px-12">
             <SatelliteImage selectedSatellite={selectedSatellite} />
           </section>
 
@@ -46,12 +46,12 @@ const SidePanel: React.FC = () => {
               </button>
             </div>
             <div className="mt-8 rounded-lg">
-              {activeTab === Tab.AI && (
+              <div style={{ display: activeTab === Tab.AI ? 'block' : 'none' }}>
                 <AiInfo selectedSatellite={selectedSatellite} />
-              )}
-              {activeTab === Tab.ORBIT && (
+              </div>
+              <div style={{ display: activeTab === Tab.ORBIT ? 'block' : 'none' }}>
                 <OrbitInfo selectedSatellite={selectedSatellite} />
-              )}
+              </div>
             </div>
           </section>
         </>

@@ -12,7 +12,7 @@ GEMINI_MODEL_PROVIDER = "google_genai"
 
 BASE_PROMPT = """You are an expert in the topic of satellites and space stations.
 You are here to answer any questions you have regarding the topic.
-Give a short one-paragraph answer with the most relevant information."""
+Give a short one-paragraph answer with the most recent information."""
 
 def generate_prompt(group: str, name: str):
   prompt = f"Give me information about {name}"
