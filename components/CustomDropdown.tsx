@@ -42,7 +42,7 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({
         className={`dropdown-header ${isOpen ? 'open' : ''}`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <span>{selectedOption ? selectedOption.label : placeholder}</span>
+        <span className={selectedOption ? '' : 'text-gray-500'}>{selectedOption ? selectedOption.label : placeholder}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M6 9l6 6 6-6" />
         </svg>

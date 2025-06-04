@@ -1,26 +1,12 @@
 import React, { useState } from 'react';
 import CurrentlyViewing from './CurrentlyViewing';
-import useClientStore from '@/services/clientStore';
+import useClientStore from '@/hooks/useClientStore';
 import AiInfo from './AiInfo';
+import SatelliteInfo from './SatelliteInfo';
 
 const SidePanel: React.FC = () => {
   const { selectedSatellite } = useClientStore();
-  const [activeTab, setActiveTab] = useState<'info' | 'ai'>('info');
-
-  const getSatelliteImage = () => {
-    if (!selectedSatellite) return '/default.jpg';
-    const group = selectedSatellite.group || '';
-    switch (group.toLowerCase()) {
-      case 'globalstar':
-        return '/Globalstar_1.webp';
-      case 'intelsat':
-        return '/Intelsat.jpg';
-      case 'stations':
-        return '/SpaceStation.avif';
-      default:
-        return '/default.jpg';
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'ai' | 'info'>('ai');
 
   return (
     <div className="side-panel">
@@ -35,7 +21,6 @@ const SidePanel: React.FC = () => {
           <section className="section">
             <div className="satellite-header">
               <h2>{selectedSatellite.name}</h2>
-              <span className="group-label">{selectedSatellite.group}</span>
             </div>
           </section>
 
@@ -43,50 +28,26 @@ const SidePanel: React.FC = () => {
 
           <section className="section">
             <div className="tabs">
+            <button 
+                className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
+                onClick={() => setActiveTab('ai')}
+              >
+                A.I. Insights
+              </button>
               <button 
                 className={`tab ${activeTab === 'info' ? 'active' : ''}`}
                 onClick={() => setActiveTab('info')}
               >
                 Information
               </button>
-              <button 
-                className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ai')}
-              >
-                A.I. Insights
-              </button>
             </div>
             <div className="tab-indicator" />
             <div className="tab-content">
-              {activeTab === 'info' && (
-                <div className="satellite-info">
-                  <img 
-                    src={getSatelliteImage()} 
-                    alt={selectedSatellite.name}
-                    className="satellite-image"
-                  />
-                  <div className="info-stats">
-                    <div className="info-row">
-                      <span className="label">Height:</span>
-                      <span className="value">{Math.round(selectedSatellite.orbit.height * 6371)} km</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="label">Inclination:</span>
-                      <span className="value">{(selectedSatellite.orbit.inclination * (180 / Math.PI)).toFixed(6)}°</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="label">Phase:</span>
-                      <span className="value">{selectedSatellite.orbit.phase.toFixed(6)}</span>
-                    </div>
-                    <div className="info-row">
-                      <span className="label">Norad ID:</span>
-                      <span className="value">{selectedSatellite.noradId}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
               {activeTab === 'ai' && (
                 <AiInfo selectedSatellite={selectedSatellite} />
+              )}
+              {activeTab === 'info' && (
+                <SatelliteInfo selectedSatellite={selectedSatellite} />
               )}
             </div>
           </section>
@@ -116,7 +77,7 @@ const SidePanel: React.FC = () => {
         }
 
         .section:has(.tab-content) {
-          padding: 24px 16px;
+          padding: 8px 16px;
         }
 
         .separator {
@@ -130,13 +91,6 @@ const SidePanel: React.FC = () => {
           flex-direction: column;
           align-items: flex-start;
           text-align: left;
-        }
-
-        .satellite-image {
-          width: 100%;
-          height: 200px;
-          object-fit: cover;
-          margin-bottom: 20px;
         }
 
         h2 {
@@ -208,46 +162,6 @@ const SidePanel: React.FC = () => {
           margin-top: 32px;
           border-radius: 8px;
           padding: 16px 0;
-        }
-
-        .satellite-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .info-stats {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          padding: 0 16px;
-        }
-
-        .info-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .info-row:last-child {
-          border-bottom: none;
-        }
-
-        .label {
-          color: #969696;
-          font-family: 'Inter', sans-serif;
-          font-weight: 500;
-          text-transform: uppercase;
-          font-size: 12px;
-          letter-spacing: -0.03em;
-        }
-
-        .value {
-          color: white;
-          font-family: 'Inter', sans-serif;
-          font-size: 14px;
-          letter-spacing: -0.03em;
         }
       `}</style>
     </div>

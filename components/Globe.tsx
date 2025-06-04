@@ -9,7 +9,7 @@ import FPSCounter from './FPSCounter';
 import SatellitePopup from './SatellitePopup';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
-import useClientStore from '@/services/clientStore';
+import useClientStore from '@/hooks/useClientStore';
 
 interface SatelliteMesh {
   mesh: THREE.Sprite;
