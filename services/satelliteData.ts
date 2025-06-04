@@ -149,7 +149,7 @@ const getSatelliteData = async (group: string = 'stations'): Promise<SatelliteDa
       console.log("Couldn't fetch data, falling back to cache");
     }
   }
-  return data.map(calculateOrbitAndPosition(group));
+  return data.map(calculateOrbitAndPosition(group)).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 const calculateOrbitAndPosition = (group: string) => (satellite: CelestrakResponse) => {
