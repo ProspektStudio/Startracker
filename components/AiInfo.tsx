@@ -38,6 +38,7 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
   const satelliteInfo = agent === null ? '' : (agent === Agent.LLM ? llmSatelliteInfo : ragSatelliteInfo);
 
   useEffect(() => {
+    setAgent(null);
     setLlmSatelliteInfo('');
     setRagSatelliteInfo('');
   }, [selectedSatellite]);
