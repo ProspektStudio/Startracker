@@ -48,7 +48,6 @@ const Globe: React.FC = () => {
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
-  const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [fps, setFps] = useState<number>(0);
   const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
@@ -66,6 +65,7 @@ const Globe: React.FC = () => {
   const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
   const orbitLinesRef = useRef<THREE.Mesh[]>([]);
+  const selectedSatelliteRef = useRef<SatelliteData | null>(null);
 
   // Constants
   const GLOBE_RADIUS = 5;
@@ -80,6 +80,11 @@ const Globe: React.FC = () => {
     queryKey: ['hello'],
     queryFn: apiClient.hello
   });
+
+  // Update the ref whenever selectedSatellite changes
+  useEffect(() => {
+    selectedSatelliteRef.current = selectedSatellite;
+  }, [selectedSatellite]);
 
   // Setup Three.js scene
   useEffect(() => {
@@ -177,6 +182,7 @@ const Globe: React.FC = () => {
     // Define event handlers
     const onMouseMove = (event: MouseEvent) => {
       if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
+      console.log('onMouseMove', selectedSatelliteRef.current);
 
       const rect = newRenderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
@@ -190,7 +196,7 @@ const Globe: React.FC = () => {
       // Reset all non-selected satellites to white first
 
       satelliteMeshesRef.current.forEach(sat => {
-        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatellite?.noradId) {
+        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatelliteRef.current?.noradId) {
           sat.material.color.setHex(DEFAULT_COLOR);
         }
       });
@@ -199,7 +205,7 @@ const Globe: React.FC = () => {
         const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
-        if (satelliteData && satelliteData.data.noradId !== selectedSatellite?.noradId) {
+        if (satelliteData && satelliteData.data.noradId !== selectedSatelliteRef.current?.noradId) {
           satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
           
           setTooltip({
@@ -314,6 +320,14 @@ const Globe: React.FC = () => {
             opacity: 1,
             blending: THREE.NormalBlending
           });
+
+          // Clear all other instances of SELECTED_COLOR first
+          satelliteMeshesRef.current.forEach(sat => {
+            if (sat.material.color.getHex() === SELECTED_COLOR) {
+              sat.material.color.setHex(DEFAULT_COLOR);
+            }
+          });
+
           clickedSprite.material = selectedMaterial;
           satelliteData.material = selectedMaterial;
 
@@ -398,9 +412,6 @@ const Globe: React.FC = () => {
                   y = rect.top + padding;
                 }
                 
-                // First hide the current popup
-                setIsPopupVisible(false);
-                
                 // After a short delay, show the new popup
                 setTimeout(() => {
                   setPopup({
@@ -409,24 +420,13 @@ const Globe: React.FC = () => {
                     x,
                     y
                   });
-                  setIsPopupVisible(true);
-                }, 300); // Match this with the transition duration
+                }, 0); // Match this with the transition duration
               }
             };
 
             animateCamera();
           }
         }
-      } else {
-        // If clicking outside of a satellite, hide the popup and orbit line
-        setIsPopupVisible(false);
-        setTimeout(() => {
-          setPopup({ visible: false, data: null, x: 0, y: 0 });
-          if (activeOrbit && scene) {
-            scene.remove(activeOrbit);
-            setActiveOrbit(null);
-          }
-        }, 300); // Match this with the transition duration
       }
     };
 
@@ -542,10 +542,9 @@ const Globe: React.FC = () => {
     setActiveGroup(group);
     
     // Hide the popup immediately
-    setIsPopupVisible(false);
     setTimeout(() => {
       setPopup({ visible: false, data: null, x: 0, y: 0 });
-    }, 300); // Match the transition duration
+    }, 0); // Match the transition duration
 
     // Clear existing orbit lines
     if (scene) {
@@ -761,9 +760,6 @@ const Globe: React.FC = () => {
 
   const handleSatelliteSelect = (satellite: SatelliteData) => {
     
-    // Hide current popup immediately
-    setIsPopupVisible(false);
-    
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(
       sat => sat.data.noradId === satellite.noradId
@@ -876,7 +872,6 @@ const Globe: React.FC = () => {
             x,
             y
           });
-          setIsPopupVisible(true);
         }
       };
 
@@ -957,7 +952,7 @@ const Globe: React.FC = () => {
         <Tooltip text={tooltip.text} x={tooltip.x} y={tooltip.y} />
       )}
       
-      {isPopupVisible && popup.visible && popup.data && (
+      {popup.data && (
         <Tooltip text={popup.data.name} x={popup.x} y={popup.y} selectedTooltip={true} />
       )}
     </div>
@@ -976,7 +971,7 @@ const Tooltip = ({ text, x, y, selectedTooltip }: { text: string, x: number, y: 
         padding: '5px 10px',
         borderRadius: '4px',
         border: '1px solid rgba(255, 255, 255)',
-        borderColor: selectedTooltip ? 'green' : 'rgba(255, 255, 255)',
+        borderColor: selectedTooltip ? '#00FF00' : 'rgba(255, 255, 255)',
         fontSize: '14px',
         pointerEvents: 'none',
         zIndex: 1000,
