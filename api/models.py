@@ -42,7 +42,8 @@ rag_satellite_agent = RagAgent(
     llm_model_provider=GEMINI_MODEL_PROVIDER
 )
 
-def rag_content_stream(group: str, name: str):
-  prompt = generate_prompt(group, name)
-
-  return rag_satellite_agent.ask(prompt)
+async def rag_content_stream(group: str, name: str):
+    prompt = generate_prompt(group, name)
+    async for chunk in rag_satellite_agent.ask(prompt):
+        if chunk:
+            yield chunk

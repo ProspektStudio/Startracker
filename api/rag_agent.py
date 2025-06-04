@@ -7,7 +7,7 @@ from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage # <-- Add this import
+from langchain_core.messages import HumanMessage, AIMessageChunk
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from uvicorn.logging import logging as uvicorn_logging
@@ -111,10 +111,36 @@ class RagAgent:
         
         return combined_search
 
-    def ask(self, prompt: str):
-        logger.info(f"Sending prompt to system: {prompt}")
-        return self.agent_executor.stream(
-            {"messages": [{"role": "user", "content": prompt}]},
-            stream_mode="values",
-            config={"configurable": {"thread_id": "default"}} # Or a unique thread_id per session
-        )
+    async def ask(self, prompt: str):
+        """
+        Sends a prompt to the agent and streams the final LLM response.
+        """
+        print(f"\nUser Prompt: {prompt}")
+        print("Agent Response (streaming):")
+        
+        # Track if we're in a tool call
+        in_tool_call = False
+        final_response_buffer = []
+        
+        # `astream_events` provides a stream of events. We're interested in LLM token chunks.
+        # `version="v2"` is recommended for richer event data.
+        async for event in self.agent_executor.astream_events(
+            {"messages": [HumanMessage(content=prompt)]},
+            version="v2", 
+            config={"configurable": {"thread_id": "example_thread"}} # thread_id for memory
+        ):
+            kind = event["event"]
+            
+            if kind == "on_tool_start":
+                in_tool_call = True
+            elif kind == "on_tool_end":
+                in_tool_call = False
+            elif kind == "on_chat_model_stream" and not in_tool_call:
+                # This event contains chunks from the LLM.
+                chunk = event["data"]["chunk"]
+                if isinstance(chunk, AIMessageChunk):
+                    # Only yield content if we're not in a tool call
+                    if chunk.content:
+                        print(chunk.content, end="", flush=True)
+                        final_response_buffer.append(chunk.content)
+                        yield chunk.content
