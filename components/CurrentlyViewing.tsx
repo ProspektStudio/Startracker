@@ -1,4 +1,4 @@
-import useClientStore from '@/services/clientStore';
+import useClientStore from '@/hooks/useClientStore';
 import CustomDropdown from './CustomDropdown';
 
 const CurrentlyViewing: React.FC = () => {

@@ -1,4 +1,3 @@
-
 interface CelestrakResponse {
   NORAD_CAT_ID: number;
   OBJECT_ID: string;
@@ -17,7 +16,7 @@ interface CelestrakResponse {
   BSTAR: number;
   MEAN_MOTION_DOT: number;
   MEAN_MOTION_DDOT: number;
-  fetchTime: Date;
+  fetchTime: number;
 }
 
 interface SatelliteData {

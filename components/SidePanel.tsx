@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import CurrentlyViewing from './CurrentlyViewing';
-import useClientStore from '@/services/clientStore';
+import useClientStore from '@/hooks/useClientStore';
 import AiInfo from './AiInfo';
 import SatelliteInfo from './SatelliteInfo';
 

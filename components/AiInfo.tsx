@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import Spinner from './Spinner';
 import apiClient from '@/services/apiClient';
-import useClientStore from '@/services/clientStore';
 
 interface AiInfoProps {
   selectedSatellite: {

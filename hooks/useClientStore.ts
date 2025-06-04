@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SatelliteData } from './types';
+import { SatelliteData } from '../services/types';
 
 interface ClientState {
   satellites: SatelliteData[];
