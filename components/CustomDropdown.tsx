@@ -130,7 +130,8 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({
         }
 
         .dropdown-item.selected {
-          background: transparent;
+          background: rgba(128, 128, 128, 0.3);
+          cursor: default;
         }
 
         /* Scrollbar styling */
