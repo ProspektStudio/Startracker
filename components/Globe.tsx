@@ -131,9 +131,6 @@ const Globe: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Position camera
-    newCamera.position.z = 12;
-    
     // Store initial camera position and target
     initialCameraPosition.current = newCamera.position.clone();
     initialControlsTarget.current = new THREE.Vector3(0, 0, 0);
@@ -166,7 +163,7 @@ const Globe: React.FC = () => {
     newControls.enableDamping = true;
     newControls.dampingFactor = 0.05;
     newControls.rotateSpeed = 0.5;
-    newControls.minDistance = GLOBE_RADIUS + 1;
+    newControls.minDistance = 5;
     newControls.maxDistance = 30;
 
     // Initialize raycaster and mouse
@@ -707,8 +704,9 @@ const Globe: React.FC = () => {
   };
 
   const handleSatelliteSelect = (satellite: SatelliteData) => {
-    // Hide popup immediately when selection starts
+    // Hide popup and tooltip immediately when selection starts
     setPopup({ visible: false, data: null, x: 0, y: 0 });
+    setTooltip({ visible: false, text: '', x: 0, y: 0 });
     
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(
