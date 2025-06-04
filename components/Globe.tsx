@@ -36,6 +36,7 @@ const Globe: React.FC = () => {
 
   const {
     selectedGroup,
+    satellites,
     selectedSatellite,
     setSatellites,
     setSelectedSatellite
@@ -161,7 +162,7 @@ const Globe: React.FC = () => {
     newControls.enableDamping = true;
     newControls.dampingFactor = 0.05;
     newControls.rotateSpeed = 0.5;
-    newControls.minDistance = 5;
+    newControls.minDistance = GLOBE_RADIUS + 1;
     newControls.maxDistance = 30;
 
     // Initialize raycaster and mouse
@@ -762,8 +763,7 @@ const Globe: React.FC = () => {
     return tubeMesh;
   };
 
-  const handleSatelliteClick = (satellite: SatelliteData) => {
-    setSelectedSatellite(satellite);
+  const handleSatelliteSelect = (satellite: SatelliteData) => {
     
     // Hide current popup immediately
     setIsPopupVisible(false);
@@ -808,7 +808,7 @@ const Globe: React.FC = () => {
       const endTarget = satellitePosition;
 
       // Animation duration in milliseconds
-      const duration = 1000;
+      const duration = 2000;
       const startTime = Date.now();
 
       const animateCamera = () => {
@@ -890,9 +890,17 @@ const Globe: React.FC = () => {
 
   useEffect(() => {
     if (selectedSatellite) {
-      handleSatelliteClick(selectedSatellite);
+      handleSatelliteSelect(selectedSatellite);
     }
   }, [selectedSatellite]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      if (satellites.length > 0 && !selectedSatellite) {
+        setSelectedSatellite(satellites[0]);
+      }
+    }, 0);
+  }, [satellites, selectedSatellite]);
 
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">

@@ -74,7 +74,7 @@ class RagAgent:
             checkpointer=memory
         )
         
-        logger.info(f"RAG Agent initialized with system prompt: \n{system_prompt}")
+        logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
 
     def generate_combined_tool(self):
         @tool(response_format="content_and_artifact")

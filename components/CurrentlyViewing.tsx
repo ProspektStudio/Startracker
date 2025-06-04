@@ -23,9 +23,7 @@ const CurrentlyViewing: React.FC = () => {
   }));
 
   return (
-    <div className="currently-viewing">
-      <h3 className="title">Find Satellite</h3>
-      
+    <div className="flex flex-col gap-2">
       <CustomDropdown
         options={groups}
         value={selectedGroup}
@@ -39,23 +37,6 @@ const CurrentlyViewing: React.FC = () => {
         onChange={(value) => onSatelliteSelect(Number(value))}
         placeholder="Select a Satellite"
       />
-
-      <style jsx>{`
-        .currently-viewing {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          padding: 16px 8px;
-        }
-
-        .title {
-          font-family: 'Inter', sans-serif;
-          font-size: 14px;
-          font-weight: 400;
-          color: rgba(183, 183, 183, 0.7);
-          margin: 0 0 8px 0;
-        }
-      `}</style>
     </div>
   );
 };

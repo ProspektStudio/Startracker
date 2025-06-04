@@ -2,168 +2,60 @@ import React, { useState } from 'react';
 import CurrentlyViewing from './CurrentlyViewing';
 import useClientStore from '@/hooks/useClientStore';
 import AiInfo from './AiInfo';
-import SatelliteInfo from './SatelliteInfo';
+import OrbitInfo from './OrbitInfo';
+import SatelliteImage from './SatelliteImage';
+
+enum Tab {
+  AI = 'ai',
+  ORBIT = 'orbit',
+}
 
 const SidePanel: React.FC = () => {
   const { selectedSatellite } = useClientStore();
-  const [activeTab, setActiveTab] = useState<'ai' | 'info'>('ai');
+  const [activeTab, setActiveTab] = useState<Tab>(Tab.AI);
 
   return (
-    <div className="side-panel">
-      <section className="section no-padding">
+    <div className="w-[400px] h-full bg-[rgba(25,25,25,0.85)] text-white z-[1000] overflow-y-auto">
+      <section className="p-4">
         <CurrentlyViewing />
       </section>
 
       {selectedSatellite && (
         <>
-          <div className="separator" />
+          <hr className="border-white/20"/>
           
-          <section className="section">
-            <div className="satellite-header">
-              <h2>{selectedSatellite.name}</h2>
-            </div>
+          <section className="p-4">
+            <SatelliteImage selectedSatellite={selectedSatellite} />
           </section>
 
-          <div className="separator" />
+          <hr className="border-white/20"/>
 
-          <section className="section">
-            <div className="tabs">
-            <button 
-                className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ai')}
+          <section className="p-4">
+            <div className="flex gap-8 relative">
+              <button 
+                className={`bg-transparent border-none text-[rgba(255,255,255,0.6)] cursor-pointer transition-all duration-200 font-['Inter',sans-serif] text-sm font-medium tracking-[-0.03em] relative hover:text-[rgba(255,255,255,0.8)] ${activeTab === Tab.AI ? 'text-white after:content-[""] after:absolute after:bottom-[-8px] after:left-0 after:right-0 after:h-[2px] after:bg-white after:transition-all after:duration-200' : ''}`}
+                onClick={() => setActiveTab(Tab.AI)}
               >
                 A.I. Insights
               </button>
               <button 
-                className={`tab ${activeTab === 'info' ? 'active' : ''}`}
-                onClick={() => setActiveTab('info')}
+                className={`bg-transparent border-none text-[rgba(255,255,255,0.6)] cursor-pointer transition-all duration-200 font-['Inter',sans-serif] text-sm font-medium tracking-[-0.03em] relative hover:text-[rgba(255,255,255,0.8)] ${activeTab === Tab.ORBIT ? 'text-white after:content-[""] after:absolute after:bottom-[-8px] after:left-0 after:right-0 after:h-[2px] after:bg-white after:transition-all after:duration-200' : ''}`}
+                onClick={() => setActiveTab(Tab.ORBIT)}
               >
-                Information
+                Orbit Info
               </button>
             </div>
-            <div className="tab-indicator" />
-            <div className="tab-content">
-              {activeTab === 'ai' && (
+            <div className="mt-8 rounded-lg">
+              {activeTab === Tab.AI && (
                 <AiInfo selectedSatellite={selectedSatellite} />
               )}
-              {activeTab === 'info' && (
-                <SatelliteInfo selectedSatellite={selectedSatellite} />
+              {activeTab === Tab.ORBIT && (
+                <OrbitInfo selectedSatellite={selectedSatellite} />
               )}
             </div>
           </section>
         </>
       )}
-
-      <style jsx>{`
-        .side-panel {
-          width: 400px;
-          height: 100%;
-          background: rgba(25, 25, 25, 0.85);
-          color: white;
-          z-index: 1000;
-          overflow-y: auto;
-        }
-
-        .section {
-          padding: 24px 32px;
-        }
-
-        .section.no-padding {
-          padding: 0;
-        }
-
-        .section:has(.satellite-header) {
-          padding: 16px;
-        }
-
-        .section:has(.tab-content) {
-          padding: 8px 16px;
-        }
-
-        .separator {
-          height: 1px;
-          background: rgba(255, 255, 255, 0.2);
-          margin: 0;
-        }
-
-        .satellite-header {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          text-align: left;
-        }
-
-        h2 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 400;
-          color: #D8D8D8;
-          font-family: 'Inter', sans-serif;
-        }
-
-        .group-label {
-          color: rgba(183, 183, 183, 0.8);
-          font-size: 13px;
-          margin-top: 4px;
-          text-transform: capitalize;
-          font-family: 'Inter', sans-serif;
-        }
-
-        .tabs {
-          display: flex;
-          gap: 32px;
-          margin-bottom: 16px;
-          position: relative;
-        }
-
-        .tab {
-          padding: 8px 0;
-          background: transparent;
-          border: none;
-          color: rgba(255, 255, 255, 0.6);
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-family: 'Inter', sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          letter-spacing: -0.03em;
-          position: relative;
-        }
-
-        .tab:hover {
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .tab.active {
-          color: white;
-        }
-
-        .tab-indicator {
-          position: absolute;
-          bottom: -16px;
-          left: 0;
-          right: 0;
-          height: 1px;
-          background: rgba(255, 255, 255, 0.2);
-        }
-
-        .tab.active::after {
-          content: '';
-          position: absolute;
-          bottom: -16px;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background: white;
-          transition: all 0.2s ease;
-        }
-
-        .tab-content {
-          margin-top: 32px;
-          border-radius: 8px;
-          padding: 16px 0;
-        }
-      `}</style>
     </div>
   );
 };
