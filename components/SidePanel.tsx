@@ -24,7 +24,7 @@ const SidePanel: React.FC = () => {
         <>
           <hr className="border-white/20"/>
           
-          <section className="p-4">
+          <section className="py-4 px-12">
             <SatelliteImage selectedSatellite={selectedSatellite} />
           </section>
 
