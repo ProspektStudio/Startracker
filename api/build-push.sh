@@ -10,7 +10,8 @@ fi
 
 version=$1
 
-docker build -t startracker-api:${version} .
+# build for linux/amd64
+docker buildx build --platform linux/amd64 -t startracker-api:${version} .
 
 docker tag startracker-api:${version} us-south1-docker.pkg.dev/prospekt-studio/startracker/startracker-api:${version}
 

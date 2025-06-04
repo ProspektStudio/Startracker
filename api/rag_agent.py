@@ -10,55 +10,55 @@ from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from uvicorn.logging import logging as uvicorn_logging
+import pprint
 
 logger = uvicorn_logging.getLogger("uvicorn")
 
 EMBEDDINGS_MODEL = "text-embedding-004"
-WEB_PAGES = [
-    'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite',
-    'https://www.spacex.com/vehicles/dragon/',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
-    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
-]
+WEB_PAGES_FILE = "webpages.txt"
+
+def load_webpages(webpage_documents_file: str):
+    webpage_documents = []
+    with open(webpage_documents_file, "r") as f:
+        for line in f:
+            webpage_documents.append(line.strip())
+    return webpage_documents
 
 class RagAgent:
     def __init__(
         self,
-        topic: str,
+        system_prompt: str,
         llm_model: str = None,
-        llm_model_provider: str = None,
-        embeddings_model: str = EMBEDDINGS_MODEL,
-        webpage_documents: list[str] = WEB_PAGES,
+        llm_model_provider: str = None
     ):
-        if not topic:
-            raise ValueError("Topic cannot be empty")
+        if not system_prompt:
+            raise ValueError("System prompt cannot be empty")
             
-        logger.info(f"Initializing RAG Agent for topic: {topic}")
-        
-        # Core configuration
-        system_prompt = """You are an expert in the topic of {topic} and you are here to answer any questions you have regarding the topic.
-Use the following pieces of retrieved context to answer the question.
-Give as much relevant information as possible.
-Context: {context}:"""
+        logger.info(f"Initializing RAG Agent...")
         
         # Initialize components
         # 1. Set up embeddings and vector store
-        embeddings = VertexAIEmbeddings(model=embeddings_model)
+        embeddings = VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
         self.vector_store = InMemoryVectorStore(embeddings)
         
         # Load and process documents if provided
-        if webpage_documents:
-            loader = WebBaseLoader(web_paths=webpage_documents)
+        if WEB_PAGES_FILE:
+            web_pages = load_webpages(WEB_PAGES_FILE)
+            loader = WebBaseLoader(web_paths=web_pages)
             docs = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             all_splits = text_splitter.split_documents(docs)
             _ = self.vector_store.add_documents(documents=all_splits)
             logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
+        else:
+            raise Exception("No web pages provided, skipping vector store")
         
         # 2. Set up language model
-        llm = init_chat_model(llm_model, model_provider=llm_model_provider)
+        llm = init_chat_model(
+          llm_model,
+          model_provider=llm_model_provider,
+          temperature=0.0
+        )
         
         # 3. Set up memory
         memory = MemorySaver()
@@ -71,7 +71,7 @@ Context: {context}:"""
             checkpointer=memory
         )
         
-        logger.info(f"RAG Agent initialized for topic: {topic}")
+        logger.info(f"RAG Agent initialized with system prompt: \n{system_prompt}")
 
     def generate_retrieve_tool(self):
         @tool(response_format="content_and_artifact")
