@@ -182,7 +182,6 @@ const Globe: React.FC = () => {
     // Define event handlers
     const onMouseMove = (event: MouseEvent) => {
       if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
-      console.log('onMouseMove', selectedSatelliteRef.current);
 
       const rect = newRenderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
@@ -370,57 +369,6 @@ const Globe: React.FC = () => {
               } else {
                 // Re-enable controls after animation
                 newControls.enabled = true;
-                
-                // Show popup only after animation is complete
-                const screenPosition = satellitePosition.clone().project(newCamera);
-                
-                // Check if satellite is behind the globe (z > 1)
-                if (screenPosition.z > 1) {
-                  return;
-                }
-                
-                const rect = newRenderer.domElement.getBoundingClientRect();
-                
-                // Position popup at bottom right of satellite dot with 1px spacing
-                const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
-                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left;
-                let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
-                
-                // Ensure popup stays within viewport
-                const popupWidth = 305;
-                const popupHeight = 174;
-                const padding = 10;
-                
-                // Adjust x position if popup would go off the right edge
-                if (x + popupWidth > rect.right - padding) {
-                  x = x - popupWidth - dotSize - 1; // Position to the left of the dot
-                } else {
-                  x = x + dotSize + 1; // Position to the right of the dot
-                }
-                
-                // Adjust x position if popup would go off the left edge
-                if (x < rect.left + padding) {
-                  x = rect.left + padding;
-                }
-                
-                // Adjust y position if popup would go off the bottom edge
-                if (y + popupHeight > rect.bottom - padding) {
-                  y = rect.bottom - popupHeight - padding;
-                }
-                // Adjust y position if popup would go off the top edge
-                if (y < rect.top + padding) {
-                  y = rect.top + padding;
-                }
-                
-                // After a short delay, show the new popup
-                setTimeout(() => {
-                  setPopup({
-                    visible: true,
-                    data: satelliteData.data,
-                    x,
-                    y
-                  });
-                }, 0); // Match this with the transition duration
               }
             };
 
@@ -759,6 +707,8 @@ const Globe: React.FC = () => {
   };
 
   const handleSatelliteSelect = (satellite: SatelliteData) => {
+    // Hide popup immediately when selection starts
+    setPopup({ visible: false, data: null, x: 0, y: 0 });
     
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(

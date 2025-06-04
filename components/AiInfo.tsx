@@ -19,7 +19,7 @@ enum Agent {
 const agentInfo: Record<string, { name: string; description: string }> = {
   [Agent.LLM]: {
     name: 'Large Language Model',
-    description: 'Large language model Gemini 2.0 Flash is a model that can generate text responses.',
+    description: 'Gemini 2.0 Flash is a large language model that can generate text responses to questions.',
   },
   [Agent.RAG]: {
     name: 'Retrieval Augmented Generation',
