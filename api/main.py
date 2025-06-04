@@ -49,12 +49,9 @@ async def get_satellite_info_rag(
 ):
     async def generate_satellite_info_stream():
         try:
-            for chunk in rag_content_stream(group, name):
-                if "messages" in chunk and chunk["messages"]:
-                    message = chunk["messages"][-1]
-                    if isinstance(message, AIMessage) or (isinstance(message, dict) and message.get("role") == "assistant"):
-                        full_response = message["content"] if isinstance(message, dict) else message.content
-                        yield full_response
+            async for chunk in rag_content_stream(group, name):
+                if chunk:
+                    yield chunk
         except Exception as e:
             print(f"An error occurred: {e}")
             yield f"Error: {e}\n\n"

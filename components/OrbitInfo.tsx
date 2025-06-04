@@ -1,7 +1,7 @@
 import React from 'react';
 import { SatelliteData } from '@/services/types';
 
-interface SatelliteInfoProps {
+interface OrbitInfoProps {
   selectedSatellite: SatelliteData;
 }
 
@@ -20,14 +20,9 @@ const getSatelliteImage = (selectedSatellite: SatelliteData) => {
   }
 };
 
-const SatelliteInfo: React.FC<SatelliteInfoProps> = ({ selectedSatellite }) => {
+const OrbitInfo: React.FC<OrbitInfoProps> = ({ selectedSatellite }) => {
   return (
     <div className="satellite-info">
-      <img 
-        src={getSatelliteImage(selectedSatellite)} 
-        alt={selectedSatellite.name || ''}
-        className="satellite-image"
-      />
       <div className="info-stats">
         <div className="info-row">
           <span className="label">Height:</span>
@@ -99,4 +94,4 @@ const SatelliteInfo: React.FC<SatelliteInfoProps> = ({ selectedSatellite }) => {
   );
 };
 
-export default SatelliteInfo;
+export default OrbitInfo;

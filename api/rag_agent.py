@@ -7,6 +7,7 @@ from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, AIMessageChunk
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from uvicorn.logging import logging as uvicorn_logging
@@ -14,82 +15,132 @@ from uvicorn.logging import logging as uvicorn_logging
 logger = uvicorn_logging.getLogger("uvicorn")
 
 EMBEDDINGS_MODEL = "text-embedding-004"
-WEB_PAGES = [
-    'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite',
-    'https://www.spacex.com/vehicles/dragon/',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
-    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
-]
+WEB_PAGES_FILE = "webpages.txt"
+
+SYSTEM_PROMPT_FOR_COMBINED_TOOL = """You have access to the following tools:
+1.  **`combined_search`**: Use this tool to provide a comprehensive response that combines both document-specific information and general knowledge. This tool will:
+    * First search the document collection for relevant information
+    * Then supplement the response with additional general knowledge
+    * Present both pieces of information in a unified response
+"""
+
+def load_webpages(webpage_documents_file: str):
+    webpage_documents = []
+    with open(webpage_documents_file, "r") as f:
+        for line in f:
+            webpage_documents.append(line.strip())
+    return webpage_documents
 
 class RagAgent:
     def __init__(
         self,
-        topic: str,
+        base_prompt: str,
         llm_model: str = None,
-        llm_model_provider: str = None,
-        embeddings_model: str = EMBEDDINGS_MODEL,
-        webpage_documents: list[str] = WEB_PAGES,
+        llm_model_provider: str = None
     ):
-        if not topic:
-            raise ValueError("Topic cannot be empty")
             
-        logger.info(f"Initializing RAG Agent for topic: {topic}")
-        
-        # Core configuration
-        system_prompt = """You are an expert in the topic of {topic} and you are here to answer any questions you have regarding the topic.
-Use the following pieces of retrieved context to answer the question.
-Give as much relevant information as possible.
-Context: {context}:"""
+        logger.info(f"Initializing RAG Agent...")
         
         # Initialize components
         # 1. Set up embeddings and vector store
-        embeddings = VertexAIEmbeddings(model=embeddings_model)
+        embeddings = VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
         self.vector_store = InMemoryVectorStore(embeddings)
         
         # Load and process documents if provided
-        if webpage_documents:
-            loader = WebBaseLoader(web_paths=webpage_documents)
-            docs = loader.load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-            all_splits = text_splitter.split_documents(docs)
-            _ = self.vector_store.add_documents(documents=all_splits)
-            logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
+        web_pages = load_webpages(WEB_PAGES_FILE)
+        loader = WebBaseLoader(web_paths=web_pages)
+        docs = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        all_splits = text_splitter.split_documents(docs)
+        _ = self.vector_store.add_documents(documents=all_splits)
+        logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
         
         # 2. Set up language model
-        llm = init_chat_model(llm_model, model_provider=llm_model_provider)
+        self.llm = init_chat_model(
+          llm_model,
+          model_provider=llm_model_provider,
+          temperature=0.0
+        )
         
         # 3. Set up memory
         memory = MemorySaver()
         
-        # 4. Set up agent with all components
+        # 4. Create agent executor
+        system_prompt = base_prompt+SYSTEM_PROMPT_FOR_COMBINED_TOOL
         self.agent_executor = create_react_agent(
-            model=llm,
-            tools=[self.generate_retrieve_tool()],
+            model=self.llm,
+            tools=[self.generate_combined_tool()],
             prompt=system_prompt,
             checkpointer=memory
         )
         
-        logger.info(f"RAG Agent initialized for topic: {topic}")
+        logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
 
-    def generate_retrieve_tool(self):
+    def generate_combined_tool(self):
         @tool(response_format="content_and_artifact")
-        def retrieve(query: str):
-            """Retrieve information related to a query."""
-            retrieved_docs = self.vector_store.similarity_search(query)
-            serialized = "\n\n".join(
-                (f"Source: {doc.metadata}\n" f"Content: {doc.page_content}")
-                for doc in retrieved_docs
-            )
-            return serialized, retrieved_docs
+        def combined_search(query: str) -> tuple[str, list]:
+            """
+            Use this tool to get a comprehensive response by combining both document retrieval
+            and general knowledge. This tool will first search the document collection and then
+            supplement with general knowledge if needed.
+            """
+            logger.info(f"Performing combined search for query: {query}")
+            
+            # First, try to retrieve from documents
+            retrieved_docs = self.vector_store.similarity_search(query, k=3)
+            doc_content = ""
+            
+            if retrieved_docs:
+                doc_content = "\n\n".join(
+                    (f"Source: {doc.metadata.get('source', 'Unknown source')}\n"
+                     f"Content: {doc.page_content}")
+                    for doc in retrieved_docs
+                )
+            
+            # Then, get general knowledge response
+            message = HumanMessage(content=f"User query: {query}\nPlease provide additional general knowledge that complements the following document information:\n{doc_content}")
+            try:
+                general_knowledge = self.llm.invoke([message]).content
+                
+                # Combine both responses
+                combined_response = f"Document Information:\n{doc_content}\n\nAdditional General Knowledge:\n{general_knowledge}"
+                return combined_response, retrieved_docs
+            except Exception as e:
+                logger.error(f"Error in combined search: {e}")
+                return f"Error: {str(e)}", []
         
-        return retrieve
+        return combined_search
 
-    def ask(self, prompt: str):
-        """Ask the agent the given query."""
-        return self.agent_executor.stream(
-            {"messages": [{"role": "user", "content": prompt}]},
-            stream_mode="values",
-            config={"configurable": {"thread_id": "default"}}
-        )
+    async def ask(self, prompt: str):
+        """
+        Sends a prompt to the agent and streams the final LLM response.
+        """
+        print(f"\nUser Prompt: {prompt}")
+        print("Agent Response (streaming):")
+        
+        # Track if we're in a tool call
+        in_tool_call = False
+        final_response_buffer = []
+        
+        # `astream_events` provides a stream of events. We're interested in LLM token chunks.
+        # `version="v2"` is recommended for richer event data.
+        async for event in self.agent_executor.astream_events(
+            {"messages": [HumanMessage(content=prompt)]},
+            version="v2", 
+            config={"configurable": {"thread_id": "example_thread"}} # thread_id for memory
+        ):
+            kind = event["event"]
+            
+            if kind == "on_tool_start":
+                in_tool_call = True
+            elif kind == "on_tool_end":
+                in_tool_call = False
+            elif kind == "on_chat_model_stream" and not in_tool_call:
+                # This event contains chunks from the LLM.
+                chunk = event["data"]["chunk"]
+                if isinstance(chunk, AIMessageChunk):
+                    # Only yield content if we're not in a tool call
+                    if chunk.content:
+                        print(chunk.content, end="", flush=True)
+                        final_response_buffer.append(chunk.content)
+                        yield chunk.content

@@ -6,7 +6,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import getSatelliteData from '@/services/satelliteData';
 import { SatelliteData } from '@/services/types';
 import FPSCounter from './FPSCounter';
-import SatellitePopup from './SatellitePopup';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import useClientStore from '@/hooks/useClientStore';
@@ -36,6 +35,7 @@ const Globe: React.FC = () => {
 
   const {
     selectedGroup,
+    satellites,
     selectedSatellite,
     setSatellites,
     setSelectedSatellite
@@ -48,7 +48,6 @@ const Globe: React.FC = () => {
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
-  const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string>('stations');
   const [fps, setFps] = useState<number>(0);
   const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
@@ -66,6 +65,7 @@ const Globe: React.FC = () => {
   const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
   const orbitLinesRef = useRef<THREE.Mesh[]>([]);
+  const selectedSatelliteRef = useRef<SatelliteData | null>(null);
 
   // Constants
   const GLOBE_RADIUS = 5;
@@ -80,6 +80,11 @@ const Globe: React.FC = () => {
     queryKey: ['hello'],
     queryFn: apiClient.hello
   });
+
+  // Update the ref whenever selectedSatellite changes
+  useEffect(() => {
+    selectedSatelliteRef.current = selectedSatellite;
+  }, [selectedSatellite]);
 
   // Setup Three.js scene
   useEffect(() => {
@@ -126,9 +131,6 @@ const Globe: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Position camera
-    newCamera.position.z = 12;
-    
     // Store initial camera position and target
     initialCameraPosition.current = newCamera.position.clone();
     initialControlsTarget.current = new THREE.Vector3(0, 0, 0);
@@ -190,7 +192,7 @@ const Globe: React.FC = () => {
       // Reset all non-selected satellites to white first
 
       satelliteMeshesRef.current.forEach(sat => {
-        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatellite?.noradId) {
+        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatelliteRef.current?.noradId) {
           sat.material.color.setHex(DEFAULT_COLOR);
         }
       });
@@ -199,11 +201,8 @@ const Globe: React.FC = () => {
         const satelliteMesh = intersects[0].object;
         const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
 
-        if (satelliteData) {
-          // Only change color if it's not the selected satellite
-          if (satelliteData.data.noradId !== selectedSatellite?.noradId) {
-            satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
-          }
+        if (satelliteData && satelliteData.data.noradId !== selectedSatelliteRef.current?.noradId) {
+          satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
           
           setTooltip({
             visible: true,
@@ -317,6 +316,14 @@ const Globe: React.FC = () => {
             opacity: 1,
             blending: THREE.NormalBlending
           });
+
+          // Clear all other instances of SELECTED_COLOR first
+          satelliteMeshesRef.current.forEach(sat => {
+            if (sat.material.color.getHex() === SELECTED_COLOR) {
+              sat.material.color.setHex(DEFAULT_COLOR);
+            }
+          });
+
           clickedSprite.material = selectedMaterial;
           satelliteData.material = selectedMaterial;
 
@@ -359,77 +366,12 @@ const Globe: React.FC = () => {
               } else {
                 // Re-enable controls after animation
                 newControls.enabled = true;
-                
-                // Show popup only after animation is complete
-                const screenPosition = satellitePosition.clone().project(newCamera);
-                
-                // Check if satellite is behind the globe (z > 1)
-                if (screenPosition.z > 1) {
-                  return;
-                }
-                
-                const rect = newRenderer.domElement.getBoundingClientRect();
-                
-                // Position popup at bottom right of satellite dot with 1px spacing
-                const dotSize = SATELLITE_SIZE * 100; // Convert to pixels
-                let x = ((screenPosition.x * 0.5 + 0.5) * rect.width) + rect.left;
-                let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
-                
-                // Ensure popup stays within viewport
-                const popupWidth = 305;
-                const popupHeight = 174;
-                const padding = 10;
-                
-                // Adjust x position if popup would go off the right edge
-                if (x + popupWidth > rect.right - padding) {
-                  x = x - popupWidth - dotSize - 1; // Position to the left of the dot
-                } else {
-                  x = x + dotSize + 1; // Position to the right of the dot
-                }
-                
-                // Adjust x position if popup would go off the left edge
-                if (x < rect.left + padding) {
-                  x = rect.left + padding;
-                }
-                
-                // Adjust y position if popup would go off the bottom edge
-                if (y + popupHeight > rect.bottom - padding) {
-                  y = rect.bottom - popupHeight - padding;
-                }
-                // Adjust y position if popup would go off the top edge
-                if (y < rect.top + padding) {
-                  y = rect.top + padding;
-                }
-                
-                // First hide the current popup
-                setIsPopupVisible(false);
-                
-                // After a short delay, show the new popup
-                setTimeout(() => {
-                  setPopup({
-                    visible: true,
-                    data: satelliteData.data,
-                    x,
-                    y
-                  });
-                  setIsPopupVisible(true);
-                }, 300); // Match this with the transition duration
               }
             };
 
             animateCamera();
           }
         }
-      } else {
-        // If clicking outside of a satellite, hide the popup and orbit line
-        setIsPopupVisible(false);
-        setTimeout(() => {
-          setPopup({ visible: false, data: null, x: 0, y: 0 });
-          if (activeOrbit && scene) {
-            scene.remove(activeOrbit);
-            setActiveOrbit(null);
-          }
-        }, 300); // Match this with the transition duration
       }
     };
 
@@ -545,10 +487,9 @@ const Globe: React.FC = () => {
     setActiveGroup(group);
     
     // Hide the popup immediately
-    setIsPopupVisible(false);
     setTimeout(() => {
       setPopup({ visible: false, data: null, x: 0, y: 0 });
-    }, 300); // Match the transition duration
+    }, 0); // Match the transition duration
 
     // Clear existing orbit lines
     if (scene) {
@@ -762,11 +703,10 @@ const Globe: React.FC = () => {
     return tubeMesh;
   };
 
-  const handleSatelliteClick = (satellite: SatelliteData) => {
-    setSelectedSatellite(satellite);
-    
-    // Hide current popup immediately
-    setIsPopupVisible(false);
+  const handleSatelliteSelect = (satellite: SatelliteData) => {
+    // Hide popup and tooltip immediately when selection starts
+    setPopup({ visible: false, data: null, x: 0, y: 0 });
+    setTooltip({ visible: false, text: '', x: 0, y: 0 });
     
     // Find the satellite mesh
     const satelliteMesh = satelliteMeshesRef.current.find(
@@ -808,7 +748,7 @@ const Globe: React.FC = () => {
       const endTarget = satellitePosition;
 
       // Animation duration in milliseconds
-      const duration = 1000;
+      const duration = 2000;
       const startTime = Date.now();
 
       const animateCamera = () => {
@@ -880,7 +820,6 @@ const Globe: React.FC = () => {
             x,
             y
           });
-          setIsPopupVisible(true);
         }
       };
 
@@ -890,9 +829,17 @@ const Globe: React.FC = () => {
 
   useEffect(() => {
     if (selectedSatellite) {
-      handleSatelliteClick(selectedSatellite);
+      handleSatelliteSelect(selectedSatellite);
     }
   }, [selectedSatellite]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      if (satellites.length > 0 && !selectedSatellite) {
+        setSelectedSatellite(satellites[0]);
+      }
+    }, 0);
+  }, [satellites, selectedSatellite]);
 
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
@@ -950,33 +897,36 @@ const Globe: React.FC = () => {
       </div>
 
       {tooltip.visible && (
-        <div
-          style={{
-            position: 'absolute',
-            left: tooltip.x,
-            top: tooltip.y,
-            background: 'rgba(0, 0, 0, 0.8)',
-            color: 'white',
-            padding: '5px 10px',
-            borderRadius: '4px',
-            fontSize: '14px',
-            pointerEvents: 'none',
-            zIndex: 1000,
-            transform: 'translate(-50%, -100%)'
-          }}
-        >
-          {tooltip.text}
-        </div>
+        <Tooltip text={tooltip.text} x={tooltip.x} y={tooltip.y} />
       )}
       
-      {popup.visible && popup.data && (
-        <SatellitePopup
-          data={popup.data}
-          x={popup.x}
-          y={popup.y}
-          isVisible={isPopupVisible}
-        />
+      {popup.data && (
+        <Tooltip text={popup.data.name} x={popup.x} y={popup.y} selectedTooltip={true} />
       )}
+    </div>
+  );
+};
+
+const Tooltip = ({ text, x, y, selectedTooltip }: { text: string, x: number, y: number, selectedTooltip?: boolean }) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '5px 10px',
+        borderRadius: '4px',
+        border: '1px solid rgba(255, 255, 255)',
+        borderColor: selectedTooltip ? '#00FF00' : 'rgba(255, 255, 255)',
+        fontSize: '14px',
+        pointerEvents: 'none',
+        zIndex: 1000,
+        transform: selectedTooltip ? '0' : 'translate(-50%, -100%)'
+      }}
+    >
+      {text}
     </div>
   );
 };
