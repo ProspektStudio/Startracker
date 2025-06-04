@@ -14,10 +14,18 @@ from uvicorn.logging import logging as uvicorn_logging
 
 logger = uvicorn_logging.getLogger("uvicorn")
 
+# Model and file configuration
 EMBEDDINGS_MODEL = "text-embedding-004"
 WEB_PAGES_FILE = "webpages.txt"
 
-SYSTEM_PROMPT_FOR_COMBINED_TOOL = """You have access to the following tools:
+# RAG configuration
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+SIMILARITY_SEARCH_K = 10
+LLM_TEMPERATURE = 0.0
+
+SYSTEM_PROMPT_FOR_COMBINED_TOOL = """
+You have access to the following tools:
 1.  **`combined_search`**: Use this tool to provide a comprehensive response that combines both document-specific information and general knowledge. This tool will:
     * First search the document collection for relevant information
     * Then supplement the response with additional general knowledge
@@ -48,18 +56,33 @@ class RagAgent:
         
         # Load and process documents if provided
         web_pages = load_webpages(WEB_PAGES_FILE)
+        logger.info(f"Using {len(web_pages)} webpages from {WEB_PAGES_FILE}")
+        
         loader = WebBaseLoader(web_paths=web_pages)
         docs = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        all_splits = text_splitter.split_documents(docs)
+        logger.info(f"Loaded {len(docs)} documents")
+        
+        # Preprocess documents
+        cleaned_docs = []
+        for doc in docs:
+            # Clean the content
+            cleaned_content = self._preprocess_content(doc.page_content)
+            if cleaned_content:  # Only keep documents with content after cleaning
+                doc.page_content = cleaned_content
+                cleaned_docs.append(doc)
+        logger.info(f"Cleaned {len(cleaned_docs)} documents")
+
+        # Split and store cleaned documents
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+        all_splits = text_splitter.split_documents(cleaned_docs)
         _ = self.vector_store.add_documents(documents=all_splits)
-        logger.info(f"Loaded {len(all_splits)} document chunks into vector store")
+        logger.info(f"Split into {len(all_splits)} chunks and loaded into vector store")
         
         # 2. Set up language model
         self.llm = init_chat_model(
           llm_model,
           model_provider=llm_model_provider,
-          temperature=0.0
+          temperature=LLM_TEMPERATURE
         )
         
         # 3. Set up memory
@@ -76,6 +99,24 @@ class RagAgent:
         
         logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
 
+    def _preprocess_content(self, content: str) -> str:
+        """
+        Simple preprocessing: replace separators with spaces and clean whitespace.
+        """
+        if not content:
+            return ""
+            
+        # Replace common separators with spaces
+        separators = ['\n', '\r', '\t', '|', '•', '→', '←', '↑', '↓', '↔', '↕', '↖', '↗', '↘', '↙']
+        for sep in separators:
+            content = content.replace(sep, ' ')
+            
+        # Clean up whitespace: replace multiple spaces with single space
+        import re
+        content = re.sub(r'\s+', ' ', content)
+        
+        return content.strip()
+
     def generate_combined_tool(self):
         @tool(response_format="content_and_artifact")
         def combined_search(query: str) -> tuple[str, list]:
@@ -84,10 +125,9 @@ class RagAgent:
             and general knowledge. This tool will first search the document collection and then
             supplement with general knowledge if needed.
             """
-            logger.info(f"Performing combined search for query: {query}")
             
             # First, try to retrieve from documents
-            retrieved_docs = self.vector_store.similarity_search(query, k=3)
+            retrieved_docs = self.vector_store.similarity_search(query, k=SIMILARITY_SEARCH_K)
             doc_content = ""
             
             if retrieved_docs:
@@ -98,12 +138,13 @@ class RagAgent:
                 )
             
             # Then, get general knowledge response
-            message = HumanMessage(content=f"User query: {query}\nPlease provide additional general knowledge that complements the following document information:\n{doc_content}")
+            message = HumanMessage(content=query)
             try:
                 general_knowledge = self.llm.invoke([message]).content
                 
                 # Combine both responses
                 combined_response = f"Document Information:\n{doc_content}\n\nAdditional General Knowledge:\n{general_knowledge}"
+                logger.info(f"Completed combined search for query")
                 return combined_response, retrieved_docs
             except Exception as e:
                 logger.error(f"Error in combined search: {e}")
@@ -115,8 +156,7 @@ class RagAgent:
         """
         Sends a prompt to the agent and streams the final LLM response.
         """
-        print(f"\nUser Prompt: {prompt}")
-        print("Agent Response (streaming):")
+        logger.info(f"\nUser Prompt: {prompt}")
         
         # Track if we're in a tool call
         in_tool_call = False
@@ -141,6 +181,5 @@ class RagAgent:
                 if isinstance(chunk, AIMessageChunk):
                     # Only yield content if we're not in a tool call
                     if chunk.content:
-                        print(chunk.content, end="", flush=True)
                         final_response_buffer.append(chunk.content)
                         yield chunk.content
