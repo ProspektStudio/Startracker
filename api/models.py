@@ -8,6 +8,7 @@ load_dotenv()
 # Common Config
 
 GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL_PROVIDER = "google_genai"
 
 def generate_prompt(group: str, name: str):
   return f"Give me information about the satellite {name} in the group {group}"
@@ -26,24 +27,10 @@ def gemini_content_stream(group: str, name: str):
 
 # RAG Agent Config
 
-embeddings_model = "text-embedding-004"
-webpage_documents = [
-    'https://www.nasa.gov/general/what-is-a-satellite/',
-    'https://en.wikipedia.org/wiki/Satellite',
-    'https://www.spacex.com/vehicles/dragon/',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
-    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
-    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
-]
-
-llm_model_provider = "google_genai"
-
 rag_satellite_agent = RagAgent(
     topic='Satellites',
-    embeddings_model=embeddings_model,
-    webpage_documents=webpage_documents,
     llm_model=GEMINI_MODEL,
-    llm_model_provider=llm_model_provider
+    llm_model_provider=GEMINI_MODEL_PROVIDER
 )
 
 def rag_content_stream(group: str, name: str):

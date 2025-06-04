@@ -13,14 +13,24 @@ from uvicorn.logging import logging as uvicorn_logging
 
 logger = uvicorn_logging.getLogger("uvicorn")
 
+EMBEDDINGS_MODEL = "text-embedding-004"
+WEB_PAGES = [
+    'https://www.nasa.gov/general/what-is-a-satellite/',
+    'https://en.wikipedia.org/wiki/Satellite',
+    'https://www.spacex.com/vehicles/dragon/',
+    'https://en.wikipedia.org/wiki/SpaceX_Dragon',
+    'https://en.wikipedia.org/wiki/SpaceX_Dragon_2',
+    'https://en.wikipedia.org/wiki/SpaceX_Crew-10'
+]
+
 class RagAgent:
     def __init__(
         self,
         topic: str,
-        embeddings_model: str = None,
-        webpage_documents: list[str] = None,
         llm_model: str = None,
         llm_model_provider: str = None,
+        embeddings_model: str = EMBEDDINGS_MODEL,
+        webpage_documents: list[str] = WEB_PAGES,
     ):
         if not topic:
             raise ValueError("Topic cannot be empty")
