@@ -160,7 +160,6 @@ class RagAgent:
         
         # Track if we're in a tool call
         in_tool_call = False
-        final_response_buffer = []
         
         # `astream_events` provides a stream of events. We're interested in LLM token chunks.
         # `version="v2"` is recommended for richer event data.
@@ -181,5 +180,4 @@ class RagAgent:
                 if isinstance(chunk, AIMessageChunk):
                     # Only yield content if we're not in a tool call
                     if chunk.content:
-                        final_response_buffer.append(chunk.content)
                         yield chunk.content
