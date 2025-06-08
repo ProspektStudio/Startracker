@@ -4,19 +4,18 @@
 from langchain_core.tools import tool
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_google_vertexai import VertexAIEmbeddings
-from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, AIMessageChunk
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from uvicorn.logging import logging as uvicorn_logging
+from doc_loader import load_webpages
 
 logger = uvicorn_logging.getLogger("uvicorn")
 
 # Model and file configuration
 EMBEDDINGS_MODEL = "text-embedding-004"
-WEB_PAGES_FILE = "webpages.txt"
 
 # RAG configuration
 CHUNK_SIZE = 1000
@@ -32,13 +31,6 @@ You have access to the following tools:
     * Present both pieces of information in a unified response
 """
 
-def load_webpages(webpage_documents_file: str):
-    webpage_documents = []
-    with open(webpage_documents_file, "r") as f:
-        for line in f:
-            webpage_documents.append(line.strip())
-    return webpage_documents
-
 class RagAgent:
     def __init__(
         self,
@@ -53,25 +45,10 @@ class RagAgent:
         # 1. Set up embeddings and vector store
         embeddings = VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
         self.vector_store = InMemoryVectorStore(embeddings)
-        
-        # Load and process documents if provided
-        web_pages = load_webpages(WEB_PAGES_FILE)
-        logger.info(f"Using {len(web_pages)} webpages from {WEB_PAGES_FILE}")
-        
-        loader = WebBaseLoader(web_paths=web_pages)
-        docs = loader.load()
-        logger.info(f"Loaded {len(docs)} documents")
-        
-        # Preprocess documents
-        cleaned_docs = []
-        for doc in docs:
-            # Clean the content
-            cleaned_content = self._preprocess_content(doc.page_content)
-            if cleaned_content:  # Only keep documents with content after cleaning
-                doc.page_content = cleaned_content
-                cleaned_docs.append(doc)
-        logger.info(f"Cleaned {len(cleaned_docs)} documents")
 
+        # Load and preprocess documents
+        cleaned_docs = load_webpages()
+        
         # Split and store cleaned documents
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         all_splits = text_splitter.split_documents(cleaned_docs)
@@ -98,24 +75,6 @@ class RagAgent:
         )
         
         logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
-
-    def _preprocess_content(self, content: str) -> str:
-        """
-        Simple preprocessing: replace separators with spaces and clean whitespace.
-        """
-        if not content:
-            return ""
-            
-        # Replace common separators with spaces
-        separators = ['\n', '\r', '\t', '|', '•', '→', '←', '↑', '↓', '↔', '↕', '↖', '↗', '↘', '↙']
-        for sep in separators:
-            content = content.replace(sep, ' ')
-            
-        # Clean up whitespace: replace multiple spaces with single space
-        import re
-        content = re.sub(r'\s+', ' ', content)
-        
-        return content.strip()
 
     def generate_combined_tool(self):
         @tool(response_format="content_and_artifact")
@@ -156,7 +115,7 @@ class RagAgent:
         """
         Sends a prompt to the agent and streams the final LLM response.
         """
-        logger.info(f"\nUser Prompt: {prompt}")
+        logger.info(f"User Prompt: {prompt}")
         
         # Track if we're in a tool call
         in_tool_call = False
