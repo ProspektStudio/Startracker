@@ -1,0 +1,3 @@
+FROM cognee/cognee:main
+
+COPY .env .

@@ -16,6 +16,7 @@ venv/
 
 # production
 /build
+.cognee_system
 
 # misc
 .DS_Store

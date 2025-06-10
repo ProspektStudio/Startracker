@@ -9,5 +9,5 @@ curl --location 'http://127.0.0.1:8000/api/v1/search' \
 --header "Authorization: Bearer $access_token" \
 --data '{
  "searchType": "GRAPH_COMPLETION",
- "query": "Give me information about CREW DRAGON 10"
+ "query": "When did CREW DRAGON 10 launch?"
 }'
