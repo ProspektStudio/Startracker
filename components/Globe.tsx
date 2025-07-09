@@ -846,8 +846,8 @@ const Globe: React.FC = () => {
         gap: '10px',
         zIndex: 1000,
       }}>
-        {/* Center Earth Button */}
-        <button
+        {/* TODO: Fix Center Earth Button */}
+        {/* <button
           onClick={resetCamera}
           style={{
             padding: '10px 20px',
@@ -884,7 +884,7 @@ const Globe: React.FC = () => {
             <line x1="8" y1="12" x2="16" y2="12"/>
           </svg>
           Center Earth
-        </button>
+        </button> */}
 
         {/* FPS Counter */}
         <FPSCounter fps={fps} />
