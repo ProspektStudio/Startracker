@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from uvicorn.logging import logging as uvicorn_logging
-from models import gemini_content_stream, rag_content_stream
+from models import gemini_content_stream, rag_content_stream, cag_content_stream
 from typing import AsyncGenerator, Callable
 
 logger = uvicorn_logging.getLogger("uvicorn")
@@ -42,6 +42,17 @@ async def get_satellite_info_rag(
 ):
     return StreamingResponse(
         generate_satellite_info_stream(name, rag_content_stream),
+        media_type="text/event-stream"
+    )
+
+
+@app.get("/api/satellite-info-cag")
+async def get_satellite_info_cag(
+    group: str = Query(..., min_length=1, max_length=50),
+    name: str = Query(..., min_length=1, max_length=50)
+):
+    return StreamingResponse(
+        generate_satellite_info_stream(name, cag_content_stream),
         media_type="text/event-stream"
     )
 
