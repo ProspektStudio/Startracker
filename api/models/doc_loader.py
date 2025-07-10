@@ -14,11 +14,11 @@ def load_webpages():
 
     # Load and process documents if provided
     logger.info(f"Using {len(webpage_urls)} URLs from {URLS_FILE}")
-    
+
     loader = WebBaseLoader(web_paths=webpage_urls)
     docs = loader.load()
     logger.info(f"Loaded {len(docs)} documents")
-    
+
     # Preprocess documents
     cleaned_docs = []
     for doc in docs:
@@ -28,7 +28,7 @@ def load_webpages():
             doc.page_content = cleaned_content
             cleaned_docs.append(doc)
     logger.info(f"Cleaned {len(cleaned_docs)} documents")
-    
+
     return cleaned_docs
 
 def _preprocess_content(content: str) -> str:
@@ -37,13 +37,13 @@ def _preprocess_content(content: str) -> str:
     """
     if not content:
         return ""
-        
+
     # Replace common separators with spaces
     for sep in SEPARATORS:
         content = content.replace(sep, ' ')
-        
+
     # Clean up whitespace: replace multiple spaces with single space
     import re
     content = re.sub(r'\s+', ' ', content)
-    
+
     return content.strip()

@@ -2,8 +2,8 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from google import genai
-from rag_agent import RagAgent
-from cag_agent import CagAgent
+from .rag_agent import RagAgent
+from .cag_agent import CagAgent
 
 load_dotenv()
 
@@ -26,7 +26,7 @@ gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 async def gemini_content_stream(name: str):
   prompt = generate_prompt(name)
-  
+
   contents = [
     {"parts": [{"text": BASE_PROMPT + "\n" + prompt}]}
   ]
@@ -35,7 +35,7 @@ async def gemini_content_stream(name: str):
       model=GEMINI_MODEL,
       contents=contents
   )
-  
+
   for chunk in stream:
     if chunk.text:
       yield chunk.text
