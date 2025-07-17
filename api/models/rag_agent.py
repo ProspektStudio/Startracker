@@ -1,18 +1,19 @@
 # Retrieval augmented generation (RAG)
 # https://python.langchain.com/docs/concepts/rag/
 
+import os
+import logging
 from langchain_core.tools import tool
-from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_community.vectorstores import Chroma
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, AIMessageChunk
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-from uvicorn.logging import logging as uvicorn_logging
 from .doc_loader import load_webpages
 
-logger = uvicorn_logging.getLogger("uvicorn")
+logger = logging.getLogger("uvicorn")
 
 # Model and file configuration
 EMBEDDINGS_MODEL = "text-embedding-004"
@@ -35,8 +36,8 @@ class RagAgent:
     def __init__(
         self,
         base_prompt: str,
-        llm_model: str = None,
-        llm_model_provider: str = None
+        llm_model: str | None = None,
+        llm_model_provider: str | None = None
     ):
 
         logger.info(f"Initializing RAG Agent...")
@@ -44,16 +45,37 @@ class RagAgent:
         # Initialize components
         # 1. Set up embeddings and vector store
         embeddings = VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
-        self.vector_store = InMemoryVectorStore(embeddings)
+        
+        # Define the persistent directory for the vector store
+        persist_directory = "chroma_db"
+        
+        # Check if the vector store already exists
+        if os.path.exists(persist_directory) and os.listdir(persist_directory):
+            logger.info(f"Loading existing vector store from {persist_directory}")
+            self.vector_store = Chroma(
+                embedding_function=embeddings, 
+                persist_directory=persist_directory
+            )
+            # Persist to ensure it's loaded properly
+            self.vector_store.persist()
+        else:
+            logger.info(f"Creating new vector store in {persist_directory}")
+            self.vector_store = Chroma(
+                embedding_function=embeddings, 
+                persist_directory=persist_directory
+            )
+            
+            # Load and preprocess documents
+            cleaned_docs = load_webpages()
 
-        # Load and preprocess documents
-        cleaned_docs = load_webpages()
-
-        # Split and store cleaned documents
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
-        all_splits = text_splitter.split_documents(cleaned_docs)
-        _ = self.vector_store.add_documents(documents=all_splits)
-        logger.info(f"Split into {len(all_splits)} chunks and loaded into vector store")
+            # Split and store cleaned documents
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+            all_splits = text_splitter.split_documents(cleaned_docs)
+            _ = self.vector_store.add_documents(documents=all_splits)
+            
+            # Persist the vector store to disk
+            self.vector_store.persist()
+            logger.info(f"Split into {len(all_splits)} chunks and loaded into vector store")
 
         # 2. Set up language model
         self.llm = init_chat_model(
@@ -111,6 +133,27 @@ class RagAgent:
 
         return combined_search
 
+    def persist_vector_store(self):
+        """
+        Manually persist the vector store to disk.
+        """
+        if hasattr(self.vector_store, 'persist'):
+            self.vector_store.persist()
+            logger.info("Vector store persisted to disk")
+
+    def get_vector_store_info(self):
+        """
+        Get information about the vector store.
+        """
+        if hasattr(self.vector_store, '_collection'):
+            collection = self.vector_store._collection
+            count = collection.count()
+            return {
+                "total_documents": count,
+                "persist_directory": getattr(self.vector_store, 'persist_directory', 'Unknown')
+            }
+        return {"error": "Vector store not properly initialized"}
+
     async def ask(self, prompt: str):
         """
         Sends a prompt to the agent and streams the final LLM response.
@@ -135,8 +178,9 @@ class RagAgent:
                 in_tool_call = False
             elif kind == "on_chat_model_stream" and not in_tool_call:
                 # This event contains chunks from the LLM.
-                chunk = event["data"]["chunk"]
-                if isinstance(chunk, AIMessageChunk):
+                data = event.get("data", {})
+                chunk = data.get("chunk")
+                if chunk and isinstance(chunk, AIMessageChunk):
                     # Only yield content if we're not in a tool call
                     if chunk.content:
                         yield chunk.content

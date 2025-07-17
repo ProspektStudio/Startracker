@@ -14,6 +14,9 @@
 __pycache__
 venv/
 
+# vector store
+chroma_db/
+
 # production
 /build
 .cognee_system
