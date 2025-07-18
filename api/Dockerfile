@@ -1,6 +1,9 @@
 FROM python:3.11-slim
 WORKDIR /app
 
+# Create directory for local chroma_db
+RUN mkdir -p /app/chroma_db
+
 # Install Poetry
 RUN pip install poetry
 
