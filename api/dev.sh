@@ -1,4 +1,3 @@
 #!/bin/bash
 
-source .venv/bin/activate
-uvicorn main:app --reload
+poetry run uvicorn main:app --reload
