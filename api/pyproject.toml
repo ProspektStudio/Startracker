@@ -19,6 +19,8 @@ langchain-chroma = "*"
 langchain-core = "*"
 langgraph = "*"
 chromadb = "*"
+beautifulsoup4 = "*"
+requests = "*"
 
 [build-system]
 requires = ["poetry-core"]

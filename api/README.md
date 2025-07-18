@@ -3,17 +3,15 @@
 ## Setup
 
 ### Prerequisites
-- Python 3.8 or higher
-- pip (Python package manager)
+- Python 3.11 or higher
+- poetry (Python package manager)
 - Docker (optional, for containerized deployment)
 
 ### Environment Setup
 
-1. Create venv and install dependencies:
+1. Install dependencies with poetry:
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install -r requirements.txt
+poetry install
 ```
 
 3. Set up environment variables:
@@ -31,13 +29,7 @@ LLM_API_KEY="<YOUR_OPENAI_API_KEY>"
 
 2. Run the container:
 ```bash
-./run-docker.sh
-```
-
-#### Docker Deployment
-1. Build the Docker image:
-```bash
-./build-push.sh <VERSION>
+./docker-run.sh
 ```
 
 ### API Documentation
