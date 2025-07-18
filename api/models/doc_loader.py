@@ -1,7 +1,7 @@
-from uvicorn.logging import logging as uvicorn_logging
+import logging
 from langchain_community.document_loaders import WebBaseLoader
 
-logger = uvicorn_logging.getLogger("uvicorn")
+logger = logging.getLogger("uvicorn")
 
 URLS_FILE = "urls.txt"
 SEPARATORS = ['\n', '\r', '\t', '|', '•', '→', '←', '↑', '↓', '↔', '↕', '↖', '↗', '↘', '↙']
