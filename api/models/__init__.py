@@ -55,13 +55,15 @@ async def rag_content_stream(name: str):
         if chunk:
             yield chunk
 
-cag_satellite_agent = CagAgent(
-    base_prompt=BASE_PROMPT,
-    llm_model=GEMINI_MODEL,
-)
+# CAG Agent Config
 
-async def cag_content_stream(name: str):
-    prompt = generate_prompt(name)
-    async for chunk in cag_satellite_agent.ask(prompt):
-        if chunk:
-            yield chunk
+# cag_satellite_agent = CagAgent(
+#     base_prompt=BASE_PROMPT,
+#     llm_model=GEMINI_MODEL,
+# )
+
+# async def cag_content_stream(name: str):
+#     prompt = generate_prompt(name)
+#     async for chunk in cag_satellite_agent.ask(prompt):
+#         if chunk:
+#             yield chunk

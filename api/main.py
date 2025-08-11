@@ -46,15 +46,15 @@ async def get_satellite_info_rag(
     )
 
 
-@app.get("/api/satellite-info-cag")
-async def get_satellite_info_cag(
-    group: str = Query(..., min_length=1, max_length=50),
-    name: str = Query(..., min_length=1, max_length=50)
-):
-    return StreamingResponse(
-        generate_satellite_info_stream(name, cag_content_stream),
-        media_type="text/event-stream"
-    )
+# @app.get("/api/satellite-info-cag")
+# async def get_satellite_info_cag(
+#     group: str = Query(..., min_length=1, max_length=50),
+#     name: str = Query(..., min_length=1, max_length=50)
+# ):
+#     return StreamingResponse(
+#         generate_satellite_info_stream(name, cag_content_stream),
+#         media_type="text/event-stream"
+#     )
 
 
 async def generate_satellite_info_stream(name: str, content_stream_func: Callable[[str], AsyncGenerator[str, None]]):
