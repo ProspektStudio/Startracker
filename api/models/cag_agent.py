@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from .doc_loader import load_webpages
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn")
 
 LLM_TEMPERATURE = 0.0
 

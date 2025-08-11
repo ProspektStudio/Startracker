@@ -26,10 +26,10 @@ const agentInfo: Record<string, { name: string; description: string }> = {
     name: 'Retrieval Augmented Generation',
     description: "Retrieval Augmented Generation (RAG) implementation uses Google's Vertex AI for embeddings and Gemini 2.0 Flash as the LLM, with LangChain providing the framework. The system loads satellite-related documents, processes them into chunks, stores them in an in-memory vector store, and retrieves relevant information and generates satellite information.",
   },
-  [Agent.CAG]: {
-    name: 'Cache-Augmented Generation',
-    description: "Cache-Augmented Generation (CAG) implementation uses caching to store satellite-related documents and retrieve relevant information and generates satellite information.",
-  },
+  // [Agent.CAG]: {
+  //   name: 'Cache-Augmented Generation',
+  //   description: "Cache-Augmented Generation (CAG) implementation uses caching to store satellite-related documents and retrieve relevant information and generates satellite information.",
+  // },
 }
 
 const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
