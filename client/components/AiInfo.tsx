@@ -79,13 +79,13 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
   return (
     <>
       <div className="toggle-buttons">
-        {Object.keys(agentInfo).map((key: keyof typeof agentInfo) => (
+        {Object.keys(agentInfo).filter((key: keyof typeof agentInfo) => key !== Agent.RAG).map((key: keyof typeof agentInfo) => (
           <button
             key={key}
             className={`toggle-button w-full flex items-center justify-center gap-2 ${agent === key ? 'active' : ''}`}
             onClick={() => onAgentSelect(key)}
           >
-            <span className="pt-1">{key.toUpperCase()}</span>
+            <span className="pt-1">Ask {key.toUpperCase()}</span>
             <Tooltip agent={key as Agent} text={agentInfo[key].description} />
           </button>
         ))}
