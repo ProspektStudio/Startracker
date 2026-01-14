@@ -49,6 +49,11 @@ rag_satellite_agent = RagAgent(
     llm_model_provider=GEMINI_MODEL_PROVIDER
 )
 
+# Initialize RAG agent asynchronously (will be started in FastAPI startup event)
+async def initialize_rag_agent():
+    """Initialize the RAG agent asynchronously."""
+    await rag_satellite_agent.initialize()
+
 async def rag_content_stream(name: str):
     prompt = generate_prompt(name)
     async for chunk in rag_satellite_agent.ask(prompt):
