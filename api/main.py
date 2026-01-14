@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from uvicorn.logging import logging as uvicorn_logging
-from models import gemini_content_stream, rag_content_stream#, cag_content_stream
+from models import gemini_content_stream, rag_content_stream, initialize_rag_agent#, cag_content_stream
 from typing import AsyncGenerator, Callable
 
 logger = uvicorn_logging.getLogger("uvicorn")
@@ -17,6 +17,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize RAG agent asynchronously on server startup."""
+    logger.info("Starting RAG agent initialization in background...")
+    # Start initialization as a background task (non-blocking)
+    # The server will start immediately, and RAG will be ready when initialization completes
+    import asyncio
+    
+    async def init_with_error_handling():
+        try:
+            await initialize_rag_agent()
+            logger.info("RAG agent initialization completed successfully")
+        except Exception as e:
+            logger.error(f"RAG agent initialization failed: {e}", exc_info=True)
+            # Server continues to run, but RAG endpoints will fail until retried
+    
+    asyncio.create_task(init_with_error_handling())
 
 
 @app.get("/api/hello")

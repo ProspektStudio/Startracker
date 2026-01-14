@@ -3,6 +3,7 @@
 
 import os
 import logging
+import asyncio
 from langchain_core.tools import tool
 from langchain_community.vectorstores import Chroma
 from langchain_google_vertexai import VertexAIEmbeddings
@@ -39,64 +40,127 @@ class RagAgent:
         llm_model: str | None = None,
         llm_model_provider: str | None = None
     ):
-
-        logger.info(f"Initializing RAG Agent...")
-
-        # Initialize components
-        # 1. Set up embeddings and vector store
-        embeddings = VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
+        self.base_prompt = base_prompt
+        self.llm_model = llm_model
+        self.llm_model_provider = llm_model_provider
+        self._initialized = False
+        self._initialization_lock = asyncio.Lock()
+        self._initialization_error = None
         
-        # Define the persistent directory for the vector store
-        persist_directory = "chroma_db"
+        # Initialize attributes that will be set during async initialization
+        self.vector_store = None
+        self.llm = None
+        self.agent_executor = None
+
+    async def initialize(self):
+        """
+        Asynchronously initialize the RAG Agent components.
+        This method can be called multiple times safely - it will only initialize once.
+        """
+        # Check if already initialized
+        if self._initialized:
+            return
         
-        # Check if the vector store already exists
-        if os.path.exists(persist_directory) and os.listdir(persist_directory):
-            logger.info(f"Loading existing vector store from {persist_directory}")
-            self.vector_store = Chroma(
-                embedding_function=embeddings, 
-                persist_directory=persist_directory
-            )
-            # Persist to ensure it's loaded properly
-            self.vector_store.persist()
-        else:
-            logger.info(f"Creating new vector store in {persist_directory}")
-            self.vector_store = Chroma(
-                embedding_function=embeddings, 
-                persist_directory=persist_directory
-            )
+        # Use lock to ensure only one initialization happens
+        async with self._initialization_lock:
+            # Double-check after acquiring lock
+            if self._initialized:
+                return
             
-            # Load and preprocess documents
-            cleaned_docs = load_webpages()
+            try:
+                logger.info(f"Initializing RAG Agent...")
 
-            # Split and store cleaned documents
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
-            all_splits = text_splitter.split_documents(cleaned_docs)
-            _ = self.vector_store.add_documents(documents=all_splits)
-            
-            # Persist the vector store to disk
-            self.vector_store.persist()
-            logger.info(f"Split into {len(all_splits)} chunks and loaded into vector store")
+                # Run blocking operations in executor to avoid blocking the event loop
+                loop = asyncio.get_event_loop()
+                
+                # Initialize components
+                # 1. Set up embeddings and vector store
+                embeddings = await loop.run_in_executor(
+                    None, 
+                    lambda: VertexAIEmbeddings(model=EMBEDDINGS_MODEL)
+                )
+                
+                # Define the persistent directory for the vector store
+                persist_directory = "chroma_db"
+                
+                # Check if the vector store already exists
+                if os.path.exists(persist_directory) and os.listdir(persist_directory):
+                    logger.info(f"Loading existing vector store from {persist_directory}")
+                    self.vector_store = await loop.run_in_executor(
+                        None,
+                        lambda: Chroma(
+                            embedding_function=embeddings, 
+                            persist_directory=persist_directory
+                        )
+                    )
+                    # Persist to ensure it's loaded properly
+                    await loop.run_in_executor(None, self.vector_store.persist)
+                else:
+                    logger.info(f"Creating new vector store in {persist_directory}")
+                    self.vector_store = await loop.run_in_executor(
+                        None,
+                        lambda: Chroma(
+                            embedding_function=embeddings, 
+                            persist_directory=persist_directory
+                        )
+                    )
+                    
+                    # Load and preprocess documents
+                    cleaned_docs = await loop.run_in_executor(None, load_webpages)
 
-        # 2. Set up language model
-        self.llm = init_chat_model(
-          llm_model,
-          model_provider=llm_model_provider,
-          temperature=LLM_TEMPERATURE
-        )
+                    # Split and store cleaned documents
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+                    all_splits = text_splitter.split_documents(cleaned_docs)
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self.vector_store.add_documents(documents=all_splits)
+                    )
+                    
+                    # Persist the vector store to disk
+                    await loop.run_in_executor(None, self.vector_store.persist)
+                    logger.info(f"Split into {len(all_splits)} chunks and loaded into vector store")
 
-        # 3. Set up memory
-        memory = MemorySaver()
+                # 2. Set up language model
+                self.llm = await loop.run_in_executor(
+                    None,
+                    lambda: init_chat_model(
+                        self.llm_model,
+                        model_provider=self.llm_model_provider,
+                        temperature=LLM_TEMPERATURE
+                    )
+                )
 
-        # 4. Create agent executor
-        system_prompt = base_prompt+SYSTEM_PROMPT_FOR_COMBINED_TOOL
-        self.agent_executor = create_react_agent(
-            model=self.llm,
-            tools=[self.generate_combined_tool()],
-            prompt=system_prompt,
-            checkpointer=memory
-        )
+                # 3. Set up memory
+                memory = MemorySaver()
 
-        logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
+                # 4. Create agent executor
+                system_prompt = self.base_prompt + SYSTEM_PROMPT_FOR_COMBINED_TOOL
+                self.agent_executor = await loop.run_in_executor(
+                    None,
+                    lambda: create_react_agent(
+                        model=self.llm,
+                        tools=[self.generate_combined_tool()],
+                        prompt=system_prompt,
+                        checkpointer=memory
+                    )
+                )
+
+                self._initialized = True
+                logger.info(f"RAG Agent initialized with system prompt: \n\n{system_prompt}")
+            except Exception as e:
+                self._initialization_error = e
+                logger.error(f"Error initializing RAG Agent: {e}", exc_info=True)
+                raise
+
+    async def ensure_initialized(self):
+        """
+        Ensure the agent is initialized before use. Will wait for initialization if in progress.
+        """
+        if not self._initialized:
+            await self.initialize()
+        
+        if self._initialization_error:
+            raise RuntimeError(f"RAG Agent initialization failed: {self._initialization_error}") from self._initialization_error
 
     def generate_combined_tool(self):
         @tool(response_format="content_and_artifact")
@@ -158,6 +222,9 @@ class RagAgent:
         """
         Sends a prompt to the agent and streams the final LLM response.
         """
+        # Ensure agent is initialized before processing
+        await self.ensure_initialized()
+        
         logger.info(f"User Prompt: {prompt}")
 
         # Track if we're in a tool call
