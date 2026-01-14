@@ -1,5 +1,11 @@
-__pycache__/
-*.py[cod]
-.git
+node_modules
+dist
+.env
 *.log
-chroma_db/
+.DS_Store
+.git
+.gitignore
+README.md
+*.md
+.vscode
+.idea

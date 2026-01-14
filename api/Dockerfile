@@ -1,21 +1,49 @@
-FROM python:3.11-slim
+# Stage 1: Build
+FROM node:18-alpine AS builder
+
 WORKDIR /app
 
-# Create directory for local chroma_db
-RUN mkdir -p /app/chroma_db
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install Poetry
-RUN pip install poetry
+# Install dependencies (including devDependencies for build)
+RUN npm ci
 
-# Configure Poetry to not create a virtual environment in Docker
-RUN poetry config virtualenvs.create false
+# Copy source code
+COPY src/ ./src/
 
-# Copy application code
-COPY . .
+# Build TypeScript
+RUN npm run build
 
-# Install dependencies
-RUN poetry install --no-interaction --no-ansi
+# Stage 2: Production
+FROM node:18-alpine AS production
 
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Change ownership to non-root user
+RUN chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
 EXPOSE 8000
 
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application
+# Note: .env file should be provided via environment variables or mounted volume
+CMD ["node", "dist/src/index.js"]

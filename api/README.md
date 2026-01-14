@@ -1,45 +1,60 @@
-# Python API
+# StarTracker API (Node.js)
 
-## Setup
+Node.js Express server providing API endpoints for StarTracker.
 
-### Prerequisites
-- Python 3.11 or higher
-- poetry (Python package manager)
-- Docker (optional, for containerized deployment)
+## Installation
 
-### Environment Setup
-
-1. Install dependencies with poetry:
 ```bash
-poetry install
+npm install
 ```
 
-3. Set up environment variables:
-Create a `.env` file in the api directory with the following variables:
-```
-LLM_API_KEY="<YOUR_OPENAI_API_KEY>"
-```
+## Building
 
-### Running the API
-
-#### Development Mode
 ```bash
-./dev.sh
+npm run build
 ```
 
-2. Run the container:
+## Running
+
 ```bash
-./docker-run.sh
+npm start
 ```
 
-### API Documentation
-Once the server is running, you can access the API documentation at:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+Or for development with auto-reload:
 
-### Project Structure
-- `main.py` - FastAPI application entry point
-- `models.py` - Data models and schemas
-- `rag_agent.py` - RAG (Retrieval-Augmented Generation) implementation
-- `cognee_agent.py` - Cognee agent implementation
-- `doc_loader.py` - Document loading utilities
+```bash
+npm run dev
+```
+
+The server runs on port 8000 by default (or the `PORT` environment variable if set).
+
+## Endpoints
+
+### GET /api/hello
+Returns a simple hello message.
+
+**Response:**
+```json
+{
+  "message": "Hello World"
+}
+```
+
+### GET /api/satellite-info-llm
+Streams satellite information using LLM.
+
+**Query Parameters:**
+- `group` (required): String between 1-50 characters
+- `name` (required): String between 1-50 characters
+
+**Response:**
+Server-Sent Events (SSE) stream with `text/event-stream` content type.
+
+**Example:**
+```
+GET /api/satellite-info-llm?group=starlink&name=Starlink-1234
+```
+
+## Notes
+
+The `generateSatelliteInfoStream` function in `server.ts` is currently a placeholder. Replace it with your actual Gemini API integration or equivalent LLM service.
