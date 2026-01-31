@@ -5,7 +5,8 @@ export const groups = [
   { value: 'stations', label: 'Space Stations' },
   // { value: 'starlink', label: 'Starlink' },
   { value: 'globalstar', label: 'Globalstar' },
-  { value: 'intelsat', label: 'Intelsat' }
+  { value: 'intelsat', label: 'Intelsat' },
+  { value: 'satnogs', label: 'SatNOGS' },
 ];
 
 interface ClientState {

@@ -10,11 +10,9 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import useClientStore from '@/hooks/useClientStore';
 
-interface SatelliteMesh {
-  mesh: THREE.Sprite;
+interface SatellitePointData {
   data: SatelliteData;
   phase: number;
-  material: THREE.SpriteMaterial;
 }
 
 interface TooltipState {
@@ -29,6 +27,29 @@ interface PopupState {
   data: SatelliteData | null;
   x: number;
   y: number;
+}
+
+// Circular texture for round point sprites (created once in browser, shared)
+let circlePointTexture: THREE.CanvasTexture | null = null;
+function getCirclePointTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  if (circlePointTexture) return circlePointTexture;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const r = size / 2;
+  const gradient = ctx.createRadialGradient(r, r, 0, r, r, r);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+  gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.9)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  circlePointTexture = new THREE.CanvasTexture(canvas);
+  circlePointTexture.needsUpdate = true;
+  return circlePointTexture;
 }
 
 const Globe: React.FC = () => {
@@ -48,7 +69,6 @@ const Globe: React.FC = () => {
   const [controls, setControls] = useState<OrbitControls | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
-  const [fps, setFps] = useState<number>(0);
   const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
 
   // Refs
@@ -56,7 +76,10 @@ const Globe: React.FC = () => {
   const animationRef = useRef<number | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const mouseRef = useRef<THREE.Vector2 | null>(null);
-  const satelliteMeshesRef = useRef<SatelliteMesh[]>([]);
+  const satellitePointsRef = useRef<THREE.Points | null>(null);
+  const satelliteDataRef = useRef<SatellitePointData[]>([]);
+  const hoveredPointIndexRef = useRef<number | null>(null);
+  const selectedPointIndexRef = useRef<number | null>(null);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTimeRef = useRef<number>(performance.now());
   const initialCameraPosition = useRef<THREE.Vector3 | null>(null);
@@ -65,6 +88,16 @@ const Globe: React.FC = () => {
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
   const orbitLinesRef = useRef<THREE.Mesh[]>([]);
   const selectedSatelliteRef = useRef<SatelliteData | null>(null);
+  const fpsRef = useRef<number>(0);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const activeOrbitRef = useRef<THREE.Mesh | null>(null);
+  const orbitPositionVecRef = useRef<THREE.Vector3 | null>(null);
+  const orbitAxisXRef = useRef<THREE.Vector3 | null>(null);
+  const orbitAxisZRef = useRef<THREE.Vector3 | null>(null);
+  const lastMouseEventRef = useRef<MouseEvent | null>(null);
+  const mouseThrottleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastMouseRunRef = useRef<number>(0);
+  const MOUSE_THROTTLE_MS = 50;
 
   // Constants
   const GLOBE_RADIUS = 5;
@@ -73,6 +106,9 @@ const Globe: React.FC = () => {
   const DEFAULT_COLOR = 0xFFFFFF;
   const HIGHLIGHT_COLOR = 0x00F900;
   const SELECTED_COLOR = 0x00FF00;
+  // RGB 0-1 for buffer attributes
+  const WHITE_R = 1; const WHITE_G = 1; const WHITE_B = 1;
+  const GREEN_R = 0; const GREEN_G = 1; const GREEN_B = 0;
 
   // Cold start the api server
   useQuery({
@@ -168,16 +204,37 @@ const Globe: React.FC = () => {
     // Initialize raycaster and mouse
     raycasterRef.current = new THREE.Raycaster();
     mouseRef.current = new THREE.Vector2();
+    orbitPositionVecRef.current = new THREE.Vector3();
+    orbitAxisXRef.current = new THREE.Vector3(1, 0, 0);
+    orbitAxisZRef.current = new THREE.Vector3(0, 0, 1);
 
     // Store everything in state/refs
     setScene(newScene);
     setCamera(newCamera);
+    cameraRef.current = newCamera;
     setRenderer(newRenderer);
     setControls(newControls);
 
-    // Define event handlers
-    const onMouseMove = (event: MouseEvent) => {
-      if (!containerRef.current || !newCamera || !newScene || !raycasterRef.current || !mouseRef.current) return;
+    // Helper: update point colors in buffer (selected and hovered indices)
+    const updatePointColors = (points: THREE.Points | null, selectedIndex: number | null, hoveredIndex: number | null) => {
+      if (!points?.geometry?.attributes?.color) return;
+      const arr = points.geometry.attributes.color.array as Float32Array;
+      const n = points.geometry.attributes.position.count;
+      for (let i = 0; i < n; i++) {
+        if (i === selectedIndex || i === hoveredIndex) {
+          arr[i * 3] = GREEN_R; arr[i * 3 + 1] = GREEN_G; arr[i * 3 + 2] = GREEN_B;
+        } else {
+          arr[i * 3] = WHITE_R; arr[i * 3 + 1] = WHITE_G; arr[i * 3 + 2] = WHITE_B;
+        }
+      }
+      points.geometry.attributes.color.needsUpdate = true;
+    };
+
+    // Throttled mousemove: run logic at most every MOUSE_THROTTLE_MS with latest event
+    const runMouseMoveLogic = (event: MouseEvent) => {
+      if (!containerRef.current || !newCamera || !raycasterRef.current || !mouseRef.current) return;
+      const points = satellitePointsRef.current;
+      if (!points) return;
 
       const rect = newRenderer.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
@@ -186,83 +243,79 @@ const Globe: React.FC = () => {
       mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
-      const intersects = raycasterRef.current.intersectObjects(satelliteMeshesRef.current.map(sat => sat.mesh));
-
-      // Reset all non-selected satellites to white first
-
-      satelliteMeshesRef.current.forEach(sat => {
-        if (sat.material.color.getHex() === HIGHLIGHT_COLOR && sat.data.noradId !== selectedSatelliteRef.current?.noradId) {
-          sat.material.color.setHex(DEFAULT_COLOR);
-        }
-      });
+      const intersects = raycasterRef.current.intersectObject(points);
 
       if (intersects.length > 0) {
-        const satelliteMesh = intersects[0].object;
-        const satelliteData = satelliteMeshesRef.current.find(sat => sat.mesh === satelliteMesh);
-
-        if (satelliteData && satelliteData.data.noradId !== selectedSatelliteRef.current?.noradId) {
-          satelliteData.material.color.setHex(HIGHLIGHT_COLOR);
-          
+        const index = intersects[0].index ?? 0;
+        const pointData = satelliteDataRef.current[index];
+        if (pointData && pointData.data.noradId !== selectedSatelliteRef.current?.noradId) {
+          hoveredPointIndexRef.current = index;
+          updatePointColors(points, selectedPointIndexRef.current, index);
           setTooltip({
             visible: true,
-            text: satelliteData.data.name,
+            text: pointData.data.name,
             x: event.clientX,
             y: event.clientY - 10
           });
+        } else {
+          hoveredPointIndexRef.current = null;
+          updatePointColors(points, selectedPointIndexRef.current, null);
+          setTooltip({ visible: false, text: '', x: 0, y: 0 });
         }
       } else {
+        hoveredPointIndexRef.current = null;
+        updatePointColors(points, selectedPointIndexRef.current, null);
         setTooltip({ visible: false, text: '', x: 0, y: 0 });
       }
     };
 
+    const onMouseMove = (event: MouseEvent) => {
+      lastMouseEventRef.current = event;
+      const now = performance.now();
+      const elapsed = now - lastMouseRunRef.current;
+      if (elapsed >= MOUSE_THROTTLE_MS || lastMouseRunRef.current === 0) {
+        lastMouseRunRef.current = now;
+        if (mouseThrottleTimeoutRef.current) {
+          clearTimeout(mouseThrottleTimeoutRef.current);
+          mouseThrottleTimeoutRef.current = null;
+        }
+        runMouseMoveLogic(event);
+      } else if (!mouseThrottleTimeoutRef.current) {
+        mouseThrottleTimeoutRef.current = setTimeout(() => {
+          mouseThrottleTimeoutRef.current = null;
+          const ev = lastMouseEventRef.current;
+          if (ev) {
+            lastMouseRunRef.current = performance.now();
+            runMouseMoveLogic(ev);
+          }
+        }, MOUSE_THROTTLE_MS - elapsed);
+      }
+    };
+
     const handleClick = (event: MouseEvent) => {
-      if (!raycasterRef.current || !newCamera || !newRenderer || !newControls) {
-        return;
-      }
+      if (!raycasterRef.current || !newCamera || !newRenderer || !newControls) return;
+      const points = satellitePointsRef.current;
+      if (!points || !mouseRef.current) return;
 
-      // Update mouse position
       const rect = newRenderer.domElement.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
 
-      if (!mouseRef.current) {
-        return;
-      }
-
-      // Check for valid dimensions
-      if (rect.width === 0 || rect.height === 0) {
-        return;
-      }
-      
-      // Calculate normalized device coordinates
       const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-      // Check for valid coordinates
-      if (!isFinite(x) || !isFinite(y)) {
-        return;
-      }
+      if (!isFinite(x) || !isFinite(y)) return;
 
       mouseRef.current.x = x;
       mouseRef.current.y = y;
-
-      // Set up raycaster
       raycasterRef.current.setFromCamera(mouseRef.current, newCamera);
+      const intersects = raycasterRef.current.intersectObject(points);
 
-      // Get all satellite meshes
-      const satelliteMeshes = satelliteMeshesRef.current.map(sat => sat.mesh);
-
-      const intersects = raycasterRef.current.intersectObjects(satelliteMeshes, true);
-      
-      // Find any intersected Sprite (satellite)
-      const satelliteIntersects = intersects.filter(obj => obj.object instanceof THREE.Sprite);
-      
-      if (satelliteIntersects.length > 0) {
-        const clickedSprite = satelliteIntersects[0].object as THREE.Sprite;
-        const satelliteData = satelliteMeshesRef.current.find(
-          sat => sat.mesh === clickedSprite
-        );
-
-        if (satelliteData) {
-          setSelectedSatellite(satelliteData.data);
+      if (intersects.length > 0) {
+        const index = intersects[0].index ?? 0;
+        const pointData = satelliteDataRef.current[index];
+        if (pointData) {
+          setSelectedSatellite(pointData.data);
+          selectedPointIndexRef.current = index;
+          updatePointColors(points, index, null);
 
           // Hide all orbit lines first
           orbitLinesRef.current.forEach(line => {
@@ -271,105 +324,55 @@ const Globe: React.FC = () => {
               line.material.color.setHex(HIGHLIGHT_COLOR);
             }
           });
-
-          // Show only the clicked satellite's orbit line
-          const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.mesh === clickedSprite);
-          if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
-            const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
+          if (orbitLinesRef.current[index]) {
+            const lineMaterial = orbitLinesRef.current[index].material as THREE.MeshBasicMaterial;
             lineMaterial.opacity = 0.8;
             lineMaterial.color.setHex(HIGHLIGHT_COLOR);
           }
 
-          // Get the satellite's position for camera movement
-          const satellitePosition = new THREE.Vector3();
-          clickedSprite.getWorldPosition(satellitePosition);
+          // Get position from Points geometry (positions are in world space)
+          const posAttr = points.geometry.attributes.position;
+          const satellitePosition = new THREE.Vector3(
+            posAttr.getX(index),
+            posAttr.getY(index),
+            posAttr.getZ(index)
+          );
 
-          // Create orbit line
-          const orbitLine = createOrbitLine(satelliteData.data);
-          
-          // Position the line at the Earth's center (0,0,0)
+          const orbitLine = createOrbitLine(pointData.data);
           orbitLine.position.set(0, 0, 0);
-          
-          // Scale the line to make it more visible
           orbitLine.scale.set(1.1, 1.1, 1.1);
-          
-          // Remove any existing orbit line first
-          if (activeOrbit && scene) {
-            scene.remove(activeOrbit);
+          if (activeOrbitRef.current && newScene) {
+            newScene.remove(activeOrbitRef.current);
           }
-          
-          // Add the new line to the scene
-          if (scene) {
-            scene.add(orbitLine);
-          }
-          
-          // Store the new orbit line
+          newScene.add(orbitLine);
           setActiveOrbit(orbitLine);
+          activeOrbitRef.current = orbitLine;
 
-          // Change color to green instead of white
-          const selectedMaterial = new THREE.SpriteMaterial({
-            map: clickedSprite.material.map,
-            color: SELECTED_COLOR,
-            sizeAttenuation: true,
-            transparent: true,
-            opacity: 1,
-            blending: THREE.NormalBlending
-          });
-
-          // Clear all other instances of SELECTED_COLOR first
-          satelliteMeshesRef.current.forEach(sat => {
-            if (sat.material.color.getHex() === SELECTED_COLOR) {
-              sat.material.color.setHex(DEFAULT_COLOR);
-            }
-          });
-
-          clickedSprite.material = selectedMaterial;
-          satelliteData.material = selectedMaterial;
-
-          // Calculate the target camera position
-          // Position the camera at a fixed distance from the satellite
           const distance = 8;
           const direction = satellitePosition.clone().normalize();
           const targetPosition = satellitePosition.clone().add(direction.multiplyScalar(distance));
 
-          // Animate camera movement
-          if (newControls) {
-            // Disable controls during animation
-            newControls.enabled = false;
+          newControls.enabled = false;
+          const startPosition = newCamera.position.clone();
+          const startTarget = newControls.target.clone();
+          const endTarget = satellitePosition;
+          const duration = 1000;
+          const startTime = Date.now();
 
-            // Store initial camera position and target
-            const startPosition = newCamera.position.clone();
-            const startTarget = newControls.target.clone();
-            const endTarget = satellitePosition;
-
-            // Animation duration in milliseconds
-            const duration = 1000;
-            const startTime = Date.now();
-
-            const animateCamera = () => {
-              const elapsed = Date.now() - startTime;
-              const progress = Math.min(elapsed / duration, 1);
-
-              // Ease function (cubic ease-out)
-              const ease = 1 - Math.pow(1 - progress, 3);
-
-              // Interpolate camera position
-              newCamera.position.lerpVectors(startPosition, targetPosition, ease);
-
-              // Interpolate control target
-              newControls.target.lerpVectors(startTarget, endTarget, ease);
-              newControls.update();
-
-              if (progress < 1) {
-                requestAnimationFrame(animateCamera);
-              } else {
-                // Re-enable controls after animation
-                newControls.enabled = true;
-              }
-            };
-
-            animateCamera();
-          }
+          const animateCamera = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+            newCamera.position.lerpVectors(startPosition, targetPosition, ease);
+            newControls.target.lerpVectors(startTarget, endTarget, ease);
+            newControls.update();
+            if (progress < 1) {
+              requestAnimationFrame(animateCamera);
+            } else {
+              newControls.enabled = true;
+            }
+          };
+          animateCamera();
         }
       }
     };
@@ -378,10 +381,9 @@ const Globe: React.FC = () => {
     onMouseMoveRef.current = onMouseMove;
     handleClickRef.current = handleClick;
 
-    // Create satellites
-    createSatellites(newScene, textureLoader)
+    // Create satellites (Points + orbit lines)
+    createSatellites(newScene)
       .then(() => {
-        // Add event listeners after satellites are created
         newRenderer.domElement.addEventListener('mousemove', onMouseMove);
         newRenderer.domElement.addEventListener('click', handleClick);
       });
@@ -402,51 +404,47 @@ const Globe: React.FC = () => {
       // Calculate average FPS over the last 60 frames
       const averageDeltaTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
       const currentFps = Math.round(1000 / averageDeltaTime);
-      
-      setFps(currentFps);
+      fpsRef.current = currentFps;
 
       // Update orbit line width based on camera distance
-      if (camera && activeOrbit) {
-        const cameraDistance = camera.position.length();
+      const cam = cameraRef.current;
+      const activeOrb = activeOrbitRef.current;
+      if (cam && activeOrb) {
+        const cameraDistance = cam.position.length();
         // Scale the line width with distance
         const baseScale = 1;
         const scaleFactor = cameraDistance / 12; // 12 is the initial camera distance
         const newScale = baseScale * scaleFactor;
-        activeOrbit.scale.setScalar(newScale);
+        activeOrb.scale.setScalar(newScale);
       }
 
       animationRef.current = requestAnimationFrame(animate);
-      
-      // Update satellite positions and orbit lines
-      satelliteMeshesRef.current.forEach((sat, index) => {
-        // Update satellite position
-        const orbitalSpeed = ORBIT_SPEED * Math.pow(sat.data.orbit.height, -1.5);
-        sat.phase = (sat.phase + orbitalSpeed) % (Math.PI * 2);
-        
-        const radius = GLOBE_RADIUS * (1 + sat.data.orbit.height);
-        const inclination = sat.data.orbit.inclination;
-        
-        // Calculate position in orbital plane
-        const x = Math.cos(sat.phase) * radius;
-        const y = Math.sin(sat.phase) * radius;
-        const z = 0;
 
-        const position = new THREE.Vector3(x, y, z);
-        
-        // Apply rotations in the same order as orbit line:
-        // 1. Inclination (rotate around x-axis)
-        position.applyAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
-        
-        // 2. Argument of perigee (rotate around z-axis)
-        const argPerigee = sat.data.rawData.ARG_OF_PERICENTER * (Math.PI / 180);
-        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), argPerigee);
-        
-        // 3. RAAN (rotate around z-axis)
-        const raan = sat.data.rawData.RA_OF_ASC_NODE * (Math.PI / 180);
-        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), raan);
-        
-        sat.mesh.position.copy(position);
-      });
+      // Update satellite positions in Points buffer (reuse vectors to avoid GC)
+      const points = satellitePointsRef.current;
+      const pos = orbitPositionVecRef.current;
+      const axisX = orbitAxisXRef.current;
+      const axisZ = orbitAxisZRef.current;
+      if (points?.geometry?.attributes?.position && pos && axisX && axisZ) {
+        const posAttr = points.geometry.attributes.position as THREE.BufferAttribute;
+        const posArray = posAttr.array as Float32Array;
+        const data = satelliteDataRef.current;
+        for (let i = 0; i < data.length; i++) {
+          const sat = data[i];
+          const orbitalSpeed = ORBIT_SPEED * Math.pow(sat.data.orbit.height, -1.5);
+          sat.phase = (sat.phase + orbitalSpeed) % (Math.PI * 2);
+          const radius = GLOBE_RADIUS * (1 + sat.data.orbit.height);
+          const inclination = sat.data.orbit.inclination;
+          pos.set(Math.cos(sat.phase) * radius, Math.sin(sat.phase) * radius, 0);
+          pos.applyAxisAngle(axisX, inclination);
+          pos.applyAxisAngle(axisZ, sat.data.rawData.ARG_OF_PERICENTER * (Math.PI / 180));
+          pos.applyAxisAngle(axisZ, sat.data.rawData.RA_OF_ASC_NODE * (Math.PI / 180));
+          posArray[i * 3] = pos.x;
+          posArray[i * 3 + 1] = pos.y;
+          posArray[i * 3 + 2] = pos.z;
+        }
+        posAttr.needsUpdate = true;
+      }
       
       if (newControls) newControls.update();
       if (newRenderer && newScene && newCamera) {
@@ -458,6 +456,10 @@ const Globe: React.FC = () => {
 
     // Cleanup
     return () => {
+      if (mouseThrottleTimeoutRef.current) {
+        clearTimeout(mouseThrottleTimeoutRef.current);
+        mouseThrottleTimeoutRef.current = null;
+      }
       if (newRenderer.domElement && onMouseMoveRef.current && handleClickRef.current) {
         newRenderer.domElement.removeEventListener('mousemove', onMouseMoveRef.current);
         newRenderer.domElement.removeEventListener('click', handleClickRef.current);
@@ -470,11 +472,17 @@ const Globe: React.FC = () => {
         cancelAnimationFrame(animationRef.current);
       }
       
-      // Remove all orbit lines
+      // Remove orbit lines and satellite points
+      if (satellitePointsRef.current && newScene) {
+        newScene.remove(satellitePointsRef.current);
+        satellitePointsRef.current = null;
+      }
+      satelliteDataRef.current = [];
       orbitLinesRef.current.forEach(line => {
-        if (scene) scene.remove(line);
+        if (newScene) newScene.remove(line);
       });
       orbitLinesRef.current = [];
+      activeOrbitRef.current = null;
     };
   }, []);
 
@@ -487,25 +495,26 @@ const Globe: React.FC = () => {
 
     // Clear existing orbit lines
     if (scene) {
+      if (activeOrbitRef.current) {
+        scene.remove(activeOrbitRef.current);
+        activeOrbitRef.current = null;
+      }
       orbitLinesRef.current.forEach(line => {
         scene.remove(line);
       });
       orbitLinesRef.current = [];
     }
 
-    // Clear existing satellites from the scene
-    if (scene) {
-      satelliteMeshesRef.current.forEach(sat => {
-        scene.remove(sat.mesh);
-      });
-      satelliteMeshesRef.current = [];
+    // Clear existing satellite points from the scene
+    if (scene && satellitePointsRef.current) {
+      scene.remove(satellitePointsRef.current);
+      satellitePointsRef.current = null;
     }
+    satelliteDataRef.current = [];
 
     // Create new satellites for the selected group
     if (scene) {
-      const textureLoader = new THREE.TextureLoader();
-      const newSatelliteMeshes = await createSatellites(scene, textureLoader);
-      satelliteMeshesRef.current = newSatelliteMeshes;
+      await createSatellites(scene);
     }
   };
 
@@ -513,83 +522,88 @@ const Globe: React.FC = () => {
     handleGroupSelect(selectedGroup);
   }, [selectedGroup]);
 
-  const createSatellites = async (scene: THREE.Scene, textureLoader: THREE.TextureLoader): Promise<SatelliteMesh[]> => {
+  const createSatellites = async (scene: THREE.Scene): Promise<void> => {
     try {
       const satelliteData = await getSatelliteData(selectedGroup);
-      const satelliteMeshes: SatelliteMesh[] = [];
+      const dataWithPhase: SatellitePointData[] = [];
       const orbitLines: THREE.Mesh[] = [];
-      
+      const positions: number[] = [];
+      const colors: number[] = [];
+
       satelliteData.forEach(satData => {
         const rawData = satData.rawData;
         if (!rawData.NORAD_CAT_ID) return;
-        
-        // Create and add the satellite mesh
-        const satMesh = createSatelliteMesh(scene, textureLoader, satData);
-        
-        // Create orbit line for this satellite
+
+        dataWithPhase.push({ data: satData, phase: satData.orbit.phase });
+
+        // Orbit line per satellite
         const orbitLine = createOrbitLine(satData);
         orbitLine.renderOrder = 1;
         orbitLine.position.set(0, 0, 0);
         scene.add(orbitLine);
         orbitLines.push(orbitLine);
-        
-        // Calculate initial position
-        const radius = GLOBE_RADIUS * (1 + satData.orbit.height);
-        const x = Math.cos(satData.orbit.phase) * radius;
-        const y = Math.sin(satData.orbit.phase) * radius * Math.sin(satData.orbit.inclination);
-        const z = Math.sin(satData.orbit.phase) * radius * Math.cos(satData.orbit.inclination);
-        
-        const position = new THREE.Vector3(x, y, z);
-        position.applyAxisAngle(new THREE.Vector3(0, 1, 0), satData.orbit.argPerigee);
-        position.applyAxisAngle(new THREE.Vector3(0, 0, 1), satData.orbit.raan);
-        
-        satMesh.mesh.position.copy(position);
-        satelliteMeshes.push(satMesh);
-      });
-      
-      // Store the satellite meshes and orbit lines in refs
-      satelliteMeshesRef.current = satelliteMeshes;
-      orbitLinesRef.current = orbitLines;
-      
-      setSatellites(satelliteMeshes.map(sat => sat.data));
-      
-      return satelliteMeshes;
-    } catch (error) {
-      return [];
-    }
-  };
 
-  // Update the createSatelliteMesh function
-  const createSatelliteMesh = (scene: THREE.Scene, textureLoader: THREE.TextureLoader, satData: SatelliteData): SatelliteMesh => {
-    const satelliteTexture = textureLoader.load('/dot-medium.13d7e8cb.png');
-    
-    const spriteMaterial = new THREE.SpriteMaterial({ 
-      map: satelliteTexture,
-      color: DEFAULT_COLOR,
-      sizeAttenuation: true
-    });
-    
-    const satelliteSprite = new THREE.Sprite(spriteMaterial);
-    satelliteSprite.scale.set(SATELLITE_SIZE, SATELLITE_SIZE, 1);
-    
-    scene.add(satelliteSprite);
-    
-    return {
-      mesh: satelliteSprite,
-      data: satData,
-      phase: satData.orbit.phase,
-      material: spriteMaterial
-    };
+        // Initial position (same math as animation loop)
+        const radius = GLOBE_RADIUS * (1 + satData.orbit.height);
+        const inclination = satData.orbit.inclination;
+        const x = Math.cos(satData.orbit.phase) * radius;
+        const y = Math.sin(satData.orbit.phase) * radius;
+        const z = 0;
+        const pos = new THREE.Vector3(x, y, z);
+        pos.applyAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
+        pos.applyAxisAngle(new THREE.Vector3(0, 0, 1), satData.rawData.ARG_OF_PERICENTER * (Math.PI / 180));
+        pos.applyAxisAngle(new THREE.Vector3(0, 0, 1), satData.rawData.RA_OF_ASC_NODE * (Math.PI / 180));
+        positions.push(pos.x, pos.y, pos.z);
+        colors.push(WHITE_R, WHITE_G, WHITE_B);
+      });
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      const circleTexture = getCirclePointTexture();
+      const material = new THREE.PointsMaterial({
+        size: SATELLITE_SIZE,
+        sizeAttenuation: true,
+        vertexColors: true,
+        ...(circleTexture && {
+          map: circleTexture,
+          transparent: true,
+          alphaTest: 0.01,
+        }),
+      });
+
+      const points = new THREE.Points(geometry, material);
+      scene.add(points);
+
+      satellitePointsRef.current = points;
+      satelliteDataRef.current = dataWithPhase;
+      orbitLinesRef.current = orbitLines;
+      selectedPointIndexRef.current = null;
+      hoveredPointIndexRef.current = null;
+      setSatellites(dataWithPhase.map(d => d.data));
+    } catch (error) {
+      satellitePointsRef.current = null;
+      satelliteDataRef.current = [];
+      orbitLinesRef.current = [];
+    }
   };
 
   // Add reset camera function
   const resetCamera = () => {
     if (!camera || !controls || !initialCameraPosition.current || !initialControlsTarget.current) return;
 
-    // Reset all satellites to white
-    satelliteMeshesRef.current.forEach(sat => {
-      sat.material.color.setHex(DEFAULT_COLOR);
-    });
+    // Reset all point colors to white
+    const points = satellitePointsRef.current;
+    if (points?.geometry?.attributes?.color) {
+      const arr = points.geometry.attributes.color.array as Float32Array;
+      const n = points.geometry.attributes.position.count;
+      for (let i = 0; i < n; i++) {
+        arr[i * 3] = WHITE_R; arr[i * 3 + 1] = WHITE_G; arr[i * 3 + 2] = WHITE_B;
+      }
+      points.geometry.attributes.color.needsUpdate = true;
+    }
+    selectedPointIndexRef.current = null;
 
     // Disable controls during animation
     controls.enabled = false;
@@ -698,35 +712,51 @@ const Globe: React.FC = () => {
   };
 
   const handleSatelliteSelect = (satellite: SatelliteData) => {
-    // Hide popup and tooltip immediately when selection starts
     setPopup({ visible: false, data: null, x: 0, y: 0 });
     setTooltip({ visible: false, text: '', x: 0, y: 0 });
-    
-    // Find the satellite mesh
-    const satelliteMesh = satelliteMeshesRef.current.find(
+
+    const clickedIndex = satelliteDataRef.current.findIndex(
       sat => sat.data.noradId === satellite.noradId
     );
+    const points = satellitePointsRef.current;
+    if (clickedIndex === -1 || !points || !camera || !controls) return;
 
-    if (satelliteMesh && camera && controls) {
-      // Hide all orbit lines first
-      orbitLinesRef.current.forEach(line => {
-        if (line.material instanceof THREE.MeshBasicMaterial) {
-          line.material.opacity = 0;
-          line.material.color.setHex(HIGHLIGHT_COLOR);
+    selectedPointIndexRef.current = clickedIndex;
+    // Update point colors: selected green, rest white
+    const colorAttr = points.geometry?.attributes?.color;
+    if (colorAttr) {
+      const arr = colorAttr.array as Float32Array;
+      const n = points.geometry.attributes.position.count;
+      for (let i = 0; i < n; i++) {
+        if (i === clickedIndex) {
+          arr[i * 3] = GREEN_R; arr[i * 3 + 1] = GREEN_G; arr[i * 3 + 2] = GREEN_B;
+        } else {
+          arr[i * 3] = WHITE_R; arr[i * 3 + 1] = WHITE_G; arr[i * 3 + 2] = WHITE_B;
         }
-      });
-
-      // Show only the clicked satellite's orbit line
-      const clickedIndex = satelliteMeshesRef.current.findIndex(sat => sat.data.noradId === satellite.noradId);
-      if (clickedIndex !== -1 && orbitLinesRef.current[clickedIndex]) {
-        const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
-        lineMaterial.opacity = 0.8;
-        lineMaterial.color.setHex(HIGHLIGHT_COLOR);
       }
+      colorAttr.needsUpdate = true;
+    }
 
-      // Get the satellite's position
-      const satellitePosition = new THREE.Vector3();
-      satelliteMesh.mesh.getWorldPosition(satellitePosition);
+    // Hide all orbit lines first
+    orbitLinesRef.current.forEach(line => {
+      if (line.material instanceof THREE.MeshBasicMaterial) {
+        line.material.opacity = 0;
+        line.material.color.setHex(HIGHLIGHT_COLOR);
+      }
+    });
+    if (orbitLinesRef.current[clickedIndex]) {
+      const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
+      lineMaterial.opacity = 0.8;
+      lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+    }
+
+    // Get position from Points geometry
+    const posAttr = points.geometry.attributes.position;
+    const satellitePosition = new THREE.Vector3(
+      posAttr.getX(clickedIndex),
+      posAttr.getY(clickedIndex),
+      posAttr.getZ(clickedIndex)
+    );
 
       // Calculate the target camera position
       const distance = 8;
@@ -817,8 +847,7 @@ const Globe: React.FC = () => {
         }
       };
 
-      animateCamera();
-    }
+    animateCamera();
   };
 
   useEffect(() => {
@@ -887,7 +916,7 @@ const Globe: React.FC = () => {
         </button> */}
 
         {/* FPS Counter */}
-        <FPSCounter fps={fps} />
+        <FPSCounter fpsRef={fpsRef} />
       </div>
 
       {tooltip.visible && (
