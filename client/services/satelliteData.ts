@@ -1,3 +1,8 @@
+/**
+ * Satellite data service: fetches TLE/orbital data from Celestrak by group (e.g. "stations"),
+ * caches it in IndexedDB (Dexie) with a 24h staleness window, and maps raw elements into
+ * orbit parameters and lat/lon position for the globe.
+ */
 import Dexie, { Table } from 'dexie';
 import type { CelestrakResponse, SatelliteData } from './types';
 

@@ -5,21 +5,6 @@ interface OrbitInfoProps {
   selectedSatellite: SatelliteData;
 }
 
-const getSatelliteImage = (selectedSatellite: SatelliteData) => {
-  if (!selectedSatellite) return '/default.jpg';
-  const group = selectedSatellite.group || '';
-  switch (group.toLowerCase()) {
-    case 'globalstar':
-      return '/Globalstar_1.webp';
-    case 'intelsat':
-      return '/Intelsat.jpg';
-    case 'stations':
-      return '/SpaceStation.avif';
-    default:
-      return '/default.jpg';
-  }
-};
-
 const OrbitInfo: React.FC<OrbitInfoProps> = ({ selectedSatellite }) => {
   return (
     <div className="satellite-info">
