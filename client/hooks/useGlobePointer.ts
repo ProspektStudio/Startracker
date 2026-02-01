@@ -67,6 +67,8 @@ export function useGlobePointer(
     const { setSelectedSatellite } = setters;
 
     raycasterRef.current = new THREE.Raycaster();
+    // Tighter threshold so we only hit points under the cursor (default 1 is large vs point size)
+    raycasterRef.current.params.Points!.threshold = 0.25;
     mouseRef.current = new THREE.Vector2();
     handlersRef.current = { scene, camera, renderer, controls };
 
@@ -75,11 +77,19 @@ export function useGlobePointer(
       const points = satellitePointsRef.current;
       if (!points) return;
 
-      const rect = renderer.domElement.getBoundingClientRect();
+      const canvasEl = (event.currentTarget ?? renderer.domElement) as HTMLElement;
+      const rect = canvasEl.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      // Use drawing buffer size so NDC matches the actual viewport (handles devicePixelRatio)
+      const ctx = renderer.getContext();
+      const bufferW = ctx.drawingBufferWidth;
+      const bufferH = ctx.drawingBufferHeight;
+      if (bufferW === 0 || bufferH === 0) return;
+      const x = ((event.clientX - rect.left) / rect.width) * bufferW;
+      const y = ((event.clientY - rect.top) / rect.height) * bufferH;
+      mouseRef.current.x = (x / bufferW) * 2 - 1;
+      mouseRef.current.y = -(y / bufferH) * 2 + 1;
 
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
       const intersects = raycasterRef.current.intersectObject(points);
@@ -136,11 +146,18 @@ export function useGlobePointer(
       const points = satellitePointsRef.current;
       if (!points || !mouseRef.current) return;
 
-      const rect = renderer.domElement.getBoundingClientRect();
+      const canvasEl = (event.currentTarget ?? renderer.domElement) as HTMLElement;
+      const rect = canvasEl.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      const ctx = renderer.getContext();
+      const bufferW = ctx.drawingBufferWidth;
+      const bufferH = ctx.drawingBufferHeight;
+      if (bufferW === 0 || bufferH === 0) return;
+      const px = ((event.clientX - rect.left) / rect.width) * bufferW;
+      const py = ((event.clientY - rect.top) / rect.height) * bufferH;
+      const x = (px / bufferW) * 2 - 1;
+      const y = -(py / bufferH) * 2 + 1;
       if (!isFinite(x) || !isFinite(y)) return;
 
       mouseRef.current.x = x;

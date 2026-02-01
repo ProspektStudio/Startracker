@@ -53,6 +53,7 @@ export function useGlobeScene(
     };
 
     updateRendererSize();
+    newRenderer.domElement.style.display = 'block';
     container.appendChild(newRenderer.domElement);
 
     const handleResize = () => updateRendererSize();
