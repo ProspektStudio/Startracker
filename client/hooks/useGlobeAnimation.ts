@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ORBIT_SPEED, getPositionAtPhase } from '@/lib/globe/orbitMath';
@@ -23,52 +23,37 @@ export function useGlobeAnimation(
   controls: OrbitControls | null,
   refs: UseGlobeAnimationRefs
 ) {
+  const refsRef = useRef(refs);
+  refsRef.current = refs;
+
   useEffect(() => {
     if (!scene || !camera || !renderer || !controls) return;
 
-    const {
-      animationRef,
-      cameraRef,
-      satellitePointsRef,
-      satelliteDataRef,
-      activeOrbitRef,
-      orbitPositionVecRef,
-      fpsRef,
-      frameTimesRef,
-      lastFrameTimeRef,
-    } = refs;
-
-    cameraRef.current = camera;
+    const refs = refsRef.current;
+    refs.cameraRef.current = camera;
 
     const animate = () => {
+      const r = refsRef.current;
       const now = performance.now();
-      const deltaTime = now - lastFrameTimeRef.current;
-      lastFrameTimeRef.current = now;
+      const deltaTime = now - r.lastFrameTimeRef.current;
+      r.lastFrameTimeRef.current = now;
 
-      frameTimesRef.current.push(deltaTime);
-      if (frameTimesRef.current.length > 60) {
-        frameTimesRef.current.shift();
+      r.frameTimesRef.current.push(deltaTime);
+      if (r.frameTimesRef.current.length > 60) {
+        r.frameTimesRef.current.shift();
       }
       const averageDeltaTime =
-        frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
-      fpsRef.current = Math.round(1000 / averageDeltaTime);
+        r.frameTimesRef.current.reduce((a, b) => a + b, 0) / r.frameTimesRef.current.length;
+      r.fpsRef.current = Math.round(1000 / averageDeltaTime);
 
-      const cam = cameraRef.current;
-      const activeOrb = activeOrbitRef.current;
-      if (cam && activeOrb) {
-        const cameraDistance = cam.position.length();
-        const scaleFactor = cameraDistance / 12;
-        activeOrb.scale.setScalar(scaleFactor);
-      }
+      r.animationRef.current = requestAnimationFrame(animate);
 
-      animationRef.current = requestAnimationFrame(animate);
-
-      const points = satellitePointsRef.current;
-      const pos = orbitPositionVecRef.current;
+      const points = r.satellitePointsRef.current;
+      const pos = r.orbitPositionVecRef.current;
       if (points?.geometry?.attributes?.position && pos) {
         const posAttr = points.geometry.attributes.position as THREE.BufferAttribute;
         const posArray = posAttr.array as Float32Array;
-        const data = satelliteDataRef.current;
+        const data = r.satelliteDataRef.current;
         const degToRad = Math.PI / 180;
         for (let i = 0; i < data.length; i++) {
           const sat = data[i];
@@ -96,9 +81,9 @@ export function useGlobeAnimation(
     animate();
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
+      if (refs.animationRef.current) {
+        cancelAnimationFrame(refs.animationRef.current);
+        refs.animationRef.current = null;
       }
     };
   }, [scene, camera, renderer, controls]);

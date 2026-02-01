@@ -9,6 +9,7 @@ client/node_modules
 # next.js
 client/.next/
 client/out/
+client/tsconfig.tsbuildinfo
 
 # python
 __pycache__

@@ -59,7 +59,7 @@ const storeSatelliteData = async (data: CelestrakResponse[], group: string) => {
       // Store new data
       await db.satellites.bulkPut(data);
 
-      const groupEntries: SatelliteGroupMap[] = data.map((sat, index) => ({
+      const groupEntries: SatelliteGroupMap[] = data.map((sat) => ({
         id: `${group}-${sat.NORAD_CAT_ID}`,
         group: group,
         NORAD_CAT_ID: sat.NORAD_CAT_ID

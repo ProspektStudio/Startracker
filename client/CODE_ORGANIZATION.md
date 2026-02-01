@@ -46,17 +46,17 @@ Shared, mostly pure code used by Globe and its hooks. No React, no DOM except wh
 | **useClientStore** | Zustand store: `selectedGroup`, `satellites`, `selectedSatellite`, setters. Also exports `groups` for the group dropdown. |
 | **useGlobeScene** | Creates Three.js scene, camera, renderer, OrbitControls, globe mesh, lights; mounts renderer into `containerRef`; handles resize and dispose. Returns `{ scene, camera, renderer, controls }`. Accepts refs for `initialCameraPosition`, `initialControlsTarget`, and optional `cameraRef`. |
 | **useGlobeAnimation** | Runs the requestAnimationFrame loop when scene/camera/renderer/controls are set: FPS into ref, satellite positions via `getPositionAtPhase`, active orbit scale by camera distance, `controls.update()`, `renderer.render()`. Uses only refs inside the loop (no React state). Cleanup cancels the frame. |
-| **useGlobePointer** | When scene/camera/renderer/controls are set: creates raycaster and mouse vector, defines throttled mousemove and click handlers (tooltip, selection, orbit visibility, `flyToCamera`, active orbit). Owns `tooltip` and `popup` state. Returns `{ tooltip, popup, setTooltip, setPopup }`. Listeners are attached by Globe after `createSatellites` resolves (see Globe effect). |
+| **useGlobePointer** | When scene/camera/renderer/controls are set: creates raycaster and mouse vector, defines throttled mousemove and click handlers (tooltip, selection, create active orbit on click via `createOrbitLine`, `flyToCamera`). Owns `tooltip` and `popup` state. Returns `{ tooltip, popup, setTooltip, setPopup }`. Listeners are attached by Globe after `createSatellites` resolves (see Globe effect). |
 
 ## Globe.tsx – Orchestrator
 
 - **Store:** `useClientStore()` for group, satellites, selection.
 - **Refs:** Many refs for Three.js objects, mouse/raycaster, throttle state, and `attachedPointerListenersRef` so cleanup can remove pointer listeners.
 - **Hooks:** `useGlobeScene(containerRef, refs)` → `useGlobeAnimation(..., refs)` → `createOrbitLine` (useCallback) → `useGlobePointer(..., createOrbitLine)`.
-- **createSatellites** (useCallback, deps: `selectedGroup`, `createOrbitLine`): Fetches data, builds orbit lines and Points geometry, updates refs and `setSatellites`. Called on initial scene ready and when `selectedGroup` changes via `handleGroupSelect`.
-- **handleGroupSelect** (useCallback): Clears scene of points/orbits, then `createSatellites(scene)`. Triggered by `useEffect([selectedGroup, handleGroupSelect])`.
-- **handleSatelliteSelect** (useCallback): Updates point colors, orbit visibility, then `flyToCamera(..., onComplete: setPopup)`. Triggered by `useEffect([selectedSatellite, handleSatelliteSelect])`.
-- **Effect [scene, camera, renderer, controls]:** Inits orbit vec refs, calls `createSatellites(newScene).then(...)` and attaches pointer listeners from refs (`onMouseMoveRef`, `handleClickRef`). Cleanup: throttle timeout, detach listeners (via `attachedPointerListenersRef`), remove points/orbits from scene, clear refs. Does **not** create scene/renderer or run the animation loop (those are in hooks).
+- **createSatellites** (useCallback, deps: `selectedGroup`): Fetches data, builds Points geometry only (no orbit meshes; orbit line is created on demand). Updates refs and `setSatellites`. Called on initial scene ready and when `selectedGroup` changes via `handleGroupSelect`.
+- **handleGroupSelect** (useCallback): Clears scene of points and active orbit, then `createSatellites(scene)`. Triggered by `useEffect([selectedGroup, handleGroupSelect])`.
+- **handleSatelliteSelect** (useCallback): Updates point colors, creates and shows the single active orbit mesh via `createOrbitLine`, then `flyToCamera(..., onComplete: setPopup)`. Triggered by `useEffect([selectedSatellite, handleSatelliteSelect])`.
+- **Effect [scene, camera, renderer, controls]:** Inits orbit vec refs, calls `createSatellites(newScene).then(...)` and attaches pointer listeners from refs (`onMouseMoveRef`, `handleClickRef`). Cleanup: throttle timeout, detach listeners (via `attachedPointerListenersRef`), remove points and active orbit from scene, clear refs. Does **not** create scene/renderer or run the animation loop (those are in hooks).
 
 ## Other components
 
@@ -88,7 +88,7 @@ Shared, mostly pure code used by Globe and its hooks. No React, no DOM except wh
 | Point colors, circle texture, camera fly-to | `lib/globe/threeUtils.ts` |
 | Scene/camera/renderer/lights setup or resize | `hooks/useGlobeScene.ts` |
 | Animation loop (FPS, satellite positions, render) | `hooks/useGlobeAnimation.ts` |
-| Raycaster, tooltip, popup, click-to-select, camera fly on click | `hooks/useGlobePointer.ts` |
+| Raycaster, tooltip, popup, click-to-select, active orbit on demand, camera fly on click | `hooks/useGlobePointer.ts` |
 | Group/satellite list, createSatellites, handleGroupSelect, handleSatelliteSelect | `components/Globe.tsx` |
 | Store shape or group list | `hooks/useClientStore.ts` |
 | Satellite fetch/cache or mapping | `services/satelliteData.ts` |

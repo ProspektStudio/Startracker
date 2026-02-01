@@ -52,7 +52,6 @@ export function getOrbitLinePoints(
   satelliteData: SatelliteData,
   segments = 200
 ): THREE.Vector3[] {
-  const radius = GLOBE_RADIUS * (1 + satelliteData.orbit.height);
   const inclination = satelliteData.orbit.inclination;
   const raan = satelliteData.rawData.RA_OF_ASC_NODE * (Math.PI / 180);
   const argPerigee = satelliteData.rawData.ARG_OF_PERICENTER * (Math.PI / 180);

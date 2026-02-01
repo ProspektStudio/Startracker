@@ -33,7 +33,7 @@ const Globe: React.FC = () => {
   } = useClientStore();
 
   // State
-  const [activeOrbit, setActiveOrbit] = useState<THREE.Mesh | null>(null);
+  const [, setActiveOrbit] = useState<THREE.Mesh | null>(null);
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,7 +50,6 @@ const Globe: React.FC = () => {
   const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
   const onMouseMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
   const handleClickRef = useRef<((event: MouseEvent) => void) | null>(null);
-  const orbitLinesRef = useRef<THREE.Mesh[]>([]);
   const selectedSatelliteRef = useRef<SatelliteData | null>(null);
   const fpsRef = useRef<number>(0);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -119,7 +118,6 @@ const Globe: React.FC = () => {
       selectedSatelliteRef,
       selectedPointIndexRef,
       hoveredPointIndexRef,
-      orbitLinesRef,
       activeOrbitRef,
       lastMouseEventRef,
       mouseThrottleTimeoutRef,
@@ -141,9 +139,7 @@ const Globe: React.FC = () => {
     if (!scene || !camera || !renderer || !controls) return;
 
     const newScene = scene;
-    const newCamera = camera;
     const newRenderer = renderer;
-    const newControls = controls;
 
     orbitPositionVecRef.current = new THREE.Vector3();
     orbitAxisXRef.current = new THREE.Vector3(1, 0, 0);
@@ -179,10 +175,6 @@ const Globe: React.FC = () => {
         satellitePointsRef.current = null;
       }
       satelliteDataRef.current = [];
-      orbitLinesRef.current.forEach(line => {
-        if (newScene) newScene.remove(line);
-      });
-      orbitLinesRef.current = [];
       activeOrbitRef.current = null;
     };
   }, [scene, camera, renderer, controls]);
@@ -191,7 +183,6 @@ const Globe: React.FC = () => {
     try {
       const satelliteData = await getSatelliteData(selectedGroup);
       const dataWithPhase: SatellitePointData[] = [];
-      const orbitLines: THREE.Mesh[] = [];
       const positions: number[] = [];
       const colors: number[] = [];
 
@@ -200,12 +191,6 @@ const Globe: React.FC = () => {
         if (!rawData.NORAD_CAT_ID) return;
 
         dataWithPhase.push({ data: satData, phase: satData.orbit.phase });
-
-        const orbitLine = createOrbitLine(satData);
-        orbitLine.renderOrder = 1;
-        orbitLine.position.set(0, 0, 0);
-        scene.add(orbitLine);
-        orbitLines.push(orbitLine);
 
         const pos = getPositionAtPhase(
           satData.orbit.phase,
@@ -239,18 +224,16 @@ const Globe: React.FC = () => {
 
       satellitePointsRef.current = points;
       satelliteDataRef.current = dataWithPhase;
-      orbitLinesRef.current = orbitLines;
       selectedPointIndexRef.current = null;
       hoveredPointIndexRef.current = null;
       setSatellites(dataWithPhase.map((d) => d.data));
     } catch (error) {
       satellitePointsRef.current = null;
       satelliteDataRef.current = [];
-      orbitLinesRef.current = [];
     }
-  }, [selectedGroup, createOrbitLine]);
+  }, [selectedGroup]);
 
-  const handleGroupSelect = useCallback(async (_group: string) => {
+  const handleGroupSelect = useCallback(async () => {
     setTimeout(() => {
       setPopup({ visible: false, data: null, x: 0, y: 0 });
     }, 0);
@@ -260,10 +243,6 @@ const Globe: React.FC = () => {
         scene.remove(activeOrbitRef.current);
         activeOrbitRef.current = null;
       }
-      orbitLinesRef.current.forEach((line) => {
-        scene.remove(line);
-      });
-      orbitLinesRef.current = [];
     }
 
     if (scene && satellitePointsRef.current) {
@@ -278,57 +257,8 @@ const Globe: React.FC = () => {
   }, [scene, createSatellites, setPopup]);
 
   useEffect(() => {
-    handleGroupSelect(selectedGroup);
+    handleGroupSelect();
   }, [selectedGroup, handleGroupSelect]);
-
-  // Add reset camera function
-  const resetCamera = () => {
-    if (!camera || !controls || !initialCameraPosition.current || !initialControlsTarget.current) return;
-
-    // Reset all point colors to white
-    const points = satellitePointsRef.current;
-    updatePointColorsUtil(points, null, null);
-    selectedPointIndexRef.current = null;
-
-    // Disable controls during animation
-    controls.enabled = false;
-
-    // Store current positions
-    const startPosition = camera.position.clone();
-    const startTarget = controls.target.clone();
-    const endPosition = initialCameraPosition.current;
-    const endTarget = initialControlsTarget.current;
-
-    // Animation duration in milliseconds
-    const duration = 1000;
-    const startTime = Date.now();
-
-    const animateReset = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease function (cubic ease-out)
-      const ease = 1 - Math.pow(1 - progress, 3);
-
-      // Interpolate camera position
-      camera.position.lerpVectors(startPosition, endPosition, ease);
-
-      // Interpolate control target
-      controls.target.lerpVectors(startTarget, endTarget, ease);
-      controls.update();
-
-      if (progress < 1) {
-        requestAnimationFrame(animateReset);
-      } else {
-        // Re-enable controls after animation
-        controls.enabled = true;
-        // Reset popup
-        setPopup({ visible: false, data: null, x: 0, y: 0 });
-      }
-    };
-
-    animateReset();
-  };
 
   const handleSatelliteSelect = useCallback((satellite: SatelliteData) => {
     setPopup({ visible: false, data: null, x: 0, y: 0 });
@@ -338,22 +268,24 @@ const Globe: React.FC = () => {
       (sat) => sat.data.noradId === satellite.noradId
     );
     const points = satellitePointsRef.current;
-    if (clickedIndex === -1 || !points || !camera || !controls) return;
+    if (clickedIndex === -1 || !points || !scene || !camera || !controls) return;
 
     selectedPointIndexRef.current = clickedIndex;
     updatePointColorsUtil(points, clickedIndex, null);
 
-    orbitLinesRef.current.forEach((line) => {
-      if (line.material instanceof THREE.MeshBasicMaterial) {
-        line.material.opacity = 0;
-        line.material.color.setHex(HIGHLIGHT_COLOR);
-      }
-    });
-    if (orbitLinesRef.current[clickedIndex]) {
-      const lineMaterial = orbitLinesRef.current[clickedIndex].material as THREE.MeshBasicMaterial;
-      lineMaterial.opacity = 0.8;
-      lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+    if (activeOrbitRef.current && scene) {
+      scene.remove(activeOrbitRef.current);
+      activeOrbitRef.current = null;
     }
+    const orbitLine = createOrbitLine(satellite);
+    orbitLine.position.set(0, 0, 0);
+    orbitLine.scale.set(1.1, 1.1, 1.1);
+    const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
+    lineMaterial.opacity = 0.8;
+    lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+    scene.add(orbitLine);
+    setActiveOrbit(orbitLine);
+    activeOrbitRef.current = orbitLine;
 
     const posAttr = points.geometry.attributes.position;
     const satellitePosition = new THREE.Vector3(
@@ -383,7 +315,7 @@ const Globe: React.FC = () => {
       if (y < rect.top + padding) y = rect.top + padding;
       setPopup({ visible: true, data: satellite, x, y });
     });
-  }, [camera, controls, renderer, setPopup, setTooltip]);
+  }, [scene, camera, controls, renderer, setPopup, setTooltip, setActiveOrbit]);
 
   useEffect(() => {
     if (selectedSatellite) {

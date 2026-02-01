@@ -15,7 +15,6 @@ export interface UseGlobePointerRefs {
   selectedSatelliteRef: React.MutableRefObject<SatelliteData | null>;
   selectedPointIndexRef: React.MutableRefObject<number | null>;
   hoveredPointIndexRef: React.MutableRefObject<number | null>;
-  orbitLinesRef: React.MutableRefObject<THREE.Mesh[]>;
   activeOrbitRef: React.MutableRefObject<THREE.Mesh | null>;
   lastMouseEventRef: React.MutableRefObject<MouseEvent | null>;
   mouseThrottleTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
@@ -59,7 +58,6 @@ export function useGlobePointer(
       selectedSatelliteRef,
       selectedPointIndexRef,
       hoveredPointIndexRef,
-      orbitLinesRef,
       activeOrbitRef,
       lastMouseEventRef,
       mouseThrottleTimeoutRef,
@@ -159,17 +157,18 @@ export function useGlobePointer(
           selectedPointIndexRef.current = index;
           updatePointColorsUtil(points, index, null);
 
-          orbitLinesRef.current.forEach((line) => {
-            if (line.material instanceof THREE.MeshBasicMaterial) {
-              line.material.opacity = 0;
-              line.material.color.setHex(HIGHLIGHT_COLOR);
-            }
-          });
-          if (orbitLinesRef.current[index]) {
-            const lineMaterial = orbitLinesRef.current[index].material as THREE.MeshBasicMaterial;
-            lineMaterial.opacity = 0.8;
-            lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+          if (activeOrbitRef.current && scene) {
+            scene.remove(activeOrbitRef.current);
           }
+          const orbitLine = createOrbitLine(pointData.data);
+          orbitLine.position.set(0, 0, 0);
+          orbitLine.scale.set(1.1, 1.1, 1.1);
+          const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
+          lineMaterial.opacity = 0.8;
+          lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+          scene.add(orbitLine);
+          setActiveOrbit(orbitLine);
+          activeOrbitRef.current = orbitLine;
 
           const posAttr = points.geometry.attributes.position;
           const satellitePosition = new THREE.Vector3(
@@ -177,16 +176,6 @@ export function useGlobePointer(
             posAttr.getY(index),
             posAttr.getZ(index)
           );
-
-          const orbitLine = createOrbitLine(pointData.data);
-          orbitLine.position.set(0, 0, 0);
-          orbitLine.scale.set(1.1, 1.1, 1.1);
-          if (activeOrbitRef.current && scene) {
-            scene.remove(activeOrbitRef.current);
-          }
-          scene.add(orbitLine);
-          setActiveOrbit(orbitLine);
-          activeOrbitRef.current = orbitLine;
 
           flyToCamera(camera, controls, satellitePosition, 8, 1000);
         }
