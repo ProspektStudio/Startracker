@@ -1,0 +1,20 @@
+---
+description: When editing the client globe or related hooks/lib, read CODE_ORGANIZATION.md for architecture and where to change what.
+globs: client/components/Globe.tsx, client/lib/globe/**/*, client/hooks/useGlobe*.ts, client/components/Tooltip.tsx, client/components/FPSCounter.tsx
+alwaysApply: false
+---
+
+# Client globe architecture
+
+When working on the 3D globe, pointer behavior, orbit math, or related hooks:
+
+1. **Read `client/CODE_ORGANIZATION.md`** for:
+   - How Globe composes hooks and owns refs
+   - What lives in `lib/globe/` (orbitMath, threeUtils, types) and what each file is for
+   - What each hook does (useGlobeScene, useGlobeAnimation, useGlobePointer)
+   - Conventions (refs for Three.js, useCallback for handlers, pointer listener attach/cleanup)
+   - The **"Where to change what"** table so edits go in the right file
+
+2. **Follow the documented structure**: e.g. orbit math and constants in `orbitMath.ts`, point colors and camera fly-to in `threeUtils.ts`, scene setup in `useGlobeScene`, animation loop in `useGlobeAnimation`, raycaster/tooltip/popup in `useGlobePointer`.
+
+3. Do not move logic between these layers or duplicate orbit/position math without updating CODE_ORGANIZATION.md to match.
