@@ -201,16 +201,15 @@ const Globe: React.FC = () => {
     orbitAxisXRef.current = new THREE.Vector3(1, 0, 0);
     orbitAxisZRef.current = new THREE.Vector3(0, 0, 1);
 
-    // Create satellites (Points + orbit lines), then attach pointer listeners (from useGlobePointer)
-    createSatellites(newScene).then(() => {
-      const onMouseMove = onMouseMoveRef.current;
-      const handleClick = handleClickRef.current;
-      if (onMouseMove && handleClick) {
-        attachedPointerListenersRef.current = { onMouseMove, handleClick };
-        newRenderer.domElement.addEventListener('mousemove', onMouseMove);
-        newRenderer.domElement.addEventListener('click', handleClick);
-      }
-    });
+    // Attach pointer listeners only. Satellites are created by the selectedGroup effect (handleGroupSelect)
+    // so we don't call createSatellites here and avoid rendering two Points objects (one hoverable, one not).
+    const onMouseMove = onMouseMoveRef.current;
+    const handleClick = handleClickRef.current;
+    if (onMouseMove && handleClick) {
+      attachedPointerListenersRef.current = { onMouseMove, handleClick };
+      newRenderer.domElement.addEventListener('mousemove', onMouseMove);
+      newRenderer.domElement.addEventListener('click', handleClick);
+    }
 
     // Cleanup
     return () => {
