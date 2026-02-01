@@ -26,7 +26,6 @@ const Globe: React.FC = () => {
 
   const {
     selectedGroup,
-    satellites,
     selectedSatellite,
     setSatellites,
     setSelectedSatellite
@@ -64,6 +63,7 @@ const Globe: React.FC = () => {
     onMouseMove: (e: MouseEvent) => void;
     handleClick: (e: MouseEvent) => void;
   } | null>(null);
+  const onSatelliteSelectRef = useRef<((satellite: SatelliteData) => void) | null>(null);
 
   const { scene, camera, renderer, controls } = useGlobeScene(containerRef, {
     initialCameraPositionRef: initialCameraPosition,
@@ -126,13 +126,69 @@ const Globe: React.FC = () => {
       handleClickRef,
     },
     { setSelectedSatellite, setActiveOrbit },
-    createOrbitLine
+    onSatelliteSelectRef
   );
 
-  // Update the ref whenever selectedSatellite changes
-  useEffect(() => {
-    selectedSatelliteRef.current = selectedSatellite;
-  }, [selectedSatellite]);
+  selectedSatelliteRef.current = selectedSatellite;
+
+  const handleSatelliteSelect = useCallback((satellite: SatelliteData) => {
+    setPopup({ visible: false, data: null, x: 0, y: 0 });
+    setTooltip({ visible: false, text: '', x: 0, y: 0 });
+
+    const clickedIndex = satelliteDataRef.current.findIndex(
+      (sat) => sat.data.noradId === satellite.noradId
+    );
+    const points = satellitePointsRef.current;
+    if (clickedIndex === -1 || !points || !scene || !camera || !controls) return;
+
+    selectedPointIndexRef.current = clickedIndex;
+    updatePointColorsUtil(points, clickedIndex, null);
+
+    if (activeOrbitRef.current && scene) {
+      scene.remove(activeOrbitRef.current);
+      activeOrbitRef.current = null;
+    }
+    const orbitLine = createOrbitLine(satellite);
+    orbitLine.position.set(0, 0, 0);
+    orbitLine.scale.set(1.1, 1.1, 1.1);
+    const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
+    lineMaterial.opacity = 0.8;
+    lineMaterial.color.setHex(HIGHLIGHT_COLOR);
+    scene.add(orbitLine);
+    setActiveOrbit(orbitLine);
+    activeOrbitRef.current = orbitLine;
+
+    const posAttr = points.geometry.attributes.position;
+    const satellitePosition = new THREE.Vector3(
+      posAttr.getX(clickedIndex),
+      posAttr.getY(clickedIndex),
+      posAttr.getZ(clickedIndex)
+    );
+
+    flyToCamera(camera, controls, satellitePosition, 8, 2000, () => {
+      const screenPosition = satellitePosition.clone().project(camera);
+      if (screenPosition.z > 1) return;
+      const rect = renderer?.domElement.getBoundingClientRect();
+      if (!rect) return;
+      const dotSize = SATELLITE_SIZE * 100;
+      let x = (screenPosition.x * 0.5 + 0.5) * rect.width + rect.left;
+      let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
+      const popupWidth = 305;
+      const popupHeight = 174;
+      const padding = 10;
+      if (x + popupWidth > rect.right - padding) {
+        x = x - popupWidth - dotSize - 1;
+      } else {
+        x = x + dotSize + 1;
+      }
+      if (x < rect.left + padding) x = rect.left + padding;
+      if (y + popupHeight > rect.bottom - padding) y = rect.bottom - popupHeight - padding;
+      if (y < rect.top + padding) y = rect.top + padding;
+      setPopup({ visible: true, data: satellite, x, y });
+    });
+  }, [scene, camera, controls, renderer, setPopup, setTooltip, setActiveOrbit]);
+
+  onSatelliteSelectRef.current = handleSatelliteSelect;
 
   // Setup Three.js scene
   useEffect(() => {
@@ -227,11 +283,16 @@ const Globe: React.FC = () => {
       selectedPointIndexRef.current = null;
       hoveredPointIndexRef.current = null;
       setSatellites(dataWithPhase.map((d) => d.data));
+      if (dataWithPhase.length > 0) {
+        const first = dataWithPhase[0].data;
+        setSelectedSatellite(first);
+        handleSatelliteSelect(first);
+      }
     } catch (error) {
       satellitePointsRef.current = null;
       satelliteDataRef.current = [];
     }
-  }, [selectedGroup]);
+  }, [selectedGroup, setSelectedSatellite, handleSatelliteSelect]);
 
   const handleGroupSelect = useCallback(async () => {
     setTimeout(() => {
@@ -259,77 +320,6 @@ const Globe: React.FC = () => {
   useEffect(() => {
     handleGroupSelect();
   }, [selectedGroup, handleGroupSelect]);
-
-  const handleSatelliteSelect = useCallback((satellite: SatelliteData) => {
-    setPopup({ visible: false, data: null, x: 0, y: 0 });
-    setTooltip({ visible: false, text: '', x: 0, y: 0 });
-
-    const clickedIndex = satelliteDataRef.current.findIndex(
-      (sat) => sat.data.noradId === satellite.noradId
-    );
-    const points = satellitePointsRef.current;
-    if (clickedIndex === -1 || !points || !scene || !camera || !controls) return;
-
-    selectedPointIndexRef.current = clickedIndex;
-    updatePointColorsUtil(points, clickedIndex, null);
-
-    if (activeOrbitRef.current && scene) {
-      scene.remove(activeOrbitRef.current);
-      activeOrbitRef.current = null;
-    }
-    const orbitLine = createOrbitLine(satellite);
-    orbitLine.position.set(0, 0, 0);
-    orbitLine.scale.set(1.1, 1.1, 1.1);
-    const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
-    lineMaterial.opacity = 0.8;
-    lineMaterial.color.setHex(HIGHLIGHT_COLOR);
-    scene.add(orbitLine);
-    setActiveOrbit(orbitLine);
-    activeOrbitRef.current = orbitLine;
-
-    const posAttr = points.geometry.attributes.position;
-    const satellitePosition = new THREE.Vector3(
-      posAttr.getX(clickedIndex),
-      posAttr.getY(clickedIndex),
-      posAttr.getZ(clickedIndex)
-    );
-
-    flyToCamera(camera, controls, satellitePosition, 8, 2000, () => {
-      const screenPosition = satellitePosition.clone().project(camera);
-      if (screenPosition.z > 1) return;
-      const rect = renderer?.domElement.getBoundingClientRect();
-      if (!rect) return;
-      const dotSize = SATELLITE_SIZE * 100;
-      let x = (screenPosition.x * 0.5 + 0.5) * rect.width + rect.left;
-      let y = (-(screenPosition.y * 0.5 - 0.5) * rect.height) + rect.top;
-      const popupWidth = 305;
-      const popupHeight = 174;
-      const padding = 10;
-      if (x + popupWidth > rect.right - padding) {
-        x = x - popupWidth - dotSize - 1;
-      } else {
-        x = x + dotSize + 1;
-      }
-      if (x < rect.left + padding) x = rect.left + padding;
-      if (y + popupHeight > rect.bottom - padding) y = rect.bottom - popupHeight - padding;
-      if (y < rect.top + padding) y = rect.top + padding;
-      setPopup({ visible: true, data: satellite, x, y });
-    });
-  }, [scene, camera, controls, renderer, setPopup, setTooltip, setActiveOrbit]);
-
-  useEffect(() => {
-    if (selectedSatellite) {
-      handleSatelliteSelect(selectedSatellite);
-    }
-  }, [selectedSatellite, handleSatelliteSelect]);
-
-  useEffect(() => {
-    setTimeout(() => {
-      if (satellites.length > 0 && !selectedSatellite) {
-        setSelectedSatellite(satellites[0]);
-      }
-    }, 0);
-  }, [satellites, selectedSatellite]);
 
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">

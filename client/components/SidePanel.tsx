@@ -47,7 +47,7 @@ const SidePanel: React.FC = () => {
             </div>
             <div className="mt-8 rounded-lg">
               <div style={{ display: activeTab === Tab.AI ? 'block' : 'none' }}>
-                <AiInfo selectedSatellite={selectedSatellite} />
+                <AiInfo key={selectedSatellite ? `${selectedSatellite.group}-${selectedSatellite.name}` : 'none'} selectedSatellite={selectedSatellite} />
               </div>
               <div style={{ display: activeTab === Tab.ORBIT ? 'block' : 'none' }}>
                 <OrbitInfo selectedSatellite={selectedSatellite} />

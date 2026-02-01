@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { HIGHLIGHT_COLOR, MOUSE_THROTTLE_MS } from '@/lib/globe/orbitMath';
+import { MOUSE_THROTTLE_MS } from '@/lib/globe/orbitMath';
 import type { SatelliteData } from '@/services/types';
 import type { SatellitePointData, TooltipState, PopupState } from '@/lib/globe/types';
-import { updatePointColors as updatePointColorsUtil, flyToCamera } from '@/lib/globe/threeUtils';
+import { updatePointColors as updatePointColorsUtil } from '@/lib/globe/threeUtils';
 
 export interface UseGlobePointerRefs {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -35,7 +35,7 @@ export function useGlobePointer(
   controls: OrbitControls | null,
   refs: UseGlobePointerRefs,
   setters: UseGlobePointerSetters,
-  createOrbitLine: (satelliteData: SatelliteData) => THREE.Mesh
+  onSatelliteSelectRef: React.MutableRefObject<((satellite: SatelliteData) => void) | null>
 ) {
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
@@ -58,14 +58,13 @@ export function useGlobePointer(
       selectedSatelliteRef,
       selectedPointIndexRef,
       hoveredPointIndexRef,
-      activeOrbitRef,
       lastMouseEventRef,
       mouseThrottleTimeoutRef,
       lastMouseRunRef,
       onMouseMoveRef,
       handleClickRef,
     } = refs;
-    const { setSelectedSatellite, setActiveOrbit } = setters;
+    const { setSelectedSatellite } = setters;
 
     raycasterRef.current = new THREE.Raycaster();
     mouseRef.current = new THREE.Vector2();
@@ -154,30 +153,7 @@ export function useGlobePointer(
         const pointData = satelliteDataRef.current[index];
         if (pointData) {
           setSelectedSatellite(pointData.data);
-          selectedPointIndexRef.current = index;
-          updatePointColorsUtil(points, index, null);
-
-          if (activeOrbitRef.current && scene) {
-            scene.remove(activeOrbitRef.current);
-          }
-          const orbitLine = createOrbitLine(pointData.data);
-          orbitLine.position.set(0, 0, 0);
-          orbitLine.scale.set(1.1, 1.1, 1.1);
-          const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
-          lineMaterial.opacity = 0.8;
-          lineMaterial.color.setHex(HIGHLIGHT_COLOR);
-          scene.add(orbitLine);
-          setActiveOrbit(orbitLine);
-          activeOrbitRef.current = orbitLine;
-
-          const posAttr = points.geometry.attributes.position;
-          const satellitePosition = new THREE.Vector3(
-            posAttr.getX(index),
-            posAttr.getY(index),
-            posAttr.getZ(index)
-          );
-
-          flyToCamera(camera, controls, satellitePosition, 8, 1000);
+          onSatelliteSelectRef.current?.(pointData.data);
         }
       }
     };
