@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useClientStore from '../hooks/useClientStore';
 
 interface FPSCounterProps {
   fpsRef: React.MutableRefObject<number>;
@@ -9,6 +10,7 @@ interface FPSCounterProps {
 
 const FPSCounter: React.FC<FPSCounterProps> = ({ fpsRef, throttleMs = 500 }) => {
   const [displayedFps, setDisplayedFps] = useState(0);
+  const satelliteCount = useClientStore((s) => s.satellites.length);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -30,9 +32,11 @@ const FPSCounter: React.FC<FPSCounterProps> = ({ fpsRef, throttleMs = 500 }) => 
         fontFamily: 'monospace',
         display: 'flex',
         alignItems: 'center',
+        gap: '12px',
       }}
     >
-      {displayedFps} FPS
+      <span>{displayedFps} FPS</span>
+      <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{satelliteCount} sats</span>
     </div>
   );
 };
