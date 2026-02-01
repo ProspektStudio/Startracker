@@ -150,7 +150,6 @@ const Globe: React.FC = () => {
     }
     const orbitLine = createOrbitLine(satellite);
     orbitLine.position.set(0, 0, 0);
-    orbitLine.scale.set(1.1, 1.1, 1.1);
     const lineMaterial = orbitLine.material as THREE.MeshBasicMaterial;
     lineMaterial.opacity = 0.8;
     lineMaterial.color.setHex(HIGHLIGHT_COLOR);
