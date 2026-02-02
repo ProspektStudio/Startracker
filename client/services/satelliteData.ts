@@ -1,3 +1,8 @@
+/**
+ * Satellite data service: fetches TLE/orbital data from Celestrak by group (e.g. "stations"),
+ * caches it in IndexedDB (Dexie) with a 24h staleness window, and maps raw elements into
+ * orbit parameters and lat/lon position for the globe.
+ */
 import Dexie, { Table } from 'dexie';
 import type { CelestrakResponse, SatelliteData } from './types';
 
@@ -54,7 +59,7 @@ const storeSatelliteData = async (data: CelestrakResponse[], group: string) => {
       // Store new data
       await db.satellites.bulkPut(data);
 
-      const groupEntries: SatelliteGroupMap[] = data.map((sat, index) => ({
+      const groupEntries: SatelliteGroupMap[] = data.map((sat) => ({
         id: `${group}-${sat.NORAD_CAT_ID}`,
         group: group,
         NORAD_CAT_ID: sat.NORAD_CAT_ID

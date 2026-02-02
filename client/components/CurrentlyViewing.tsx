@@ -1,14 +1,8 @@
-import useClientStore from '@/hooks/useClientStore';
+import useClientStore, { groups } from '@/hooks/useClientStore';
 import CustomDropdown from './CustomDropdown';
 
 const CurrentlyViewing: React.FC = () => {
   const { selectedGroup, satellites, selectedSatellite, setSelectedGroup, setSelectedSatellite } = useClientStore();
-
-  const groups = [
-    { value: 'stations', label: 'Space Stations' },
-    { value: 'globalstar', label: 'Globalstar' },
-    { value: 'intelsat', label: 'Intelsat' }
-  ];
 
   // Only show if a group is selected
   if (!selectedGroup) return null;

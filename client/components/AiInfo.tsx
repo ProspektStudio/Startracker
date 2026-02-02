@@ -43,13 +43,6 @@ const AiInfo: React.FC<AiInfoProps> = ({ selectedSatellite }) => {
   const [cagSatelliteInfo, setCagSatelliteInfo] = useState<string>('');
   const satelliteInfo = agent === null ? '' : (agent === Agent.LLM ? llmSatelliteInfo : agent === Agent.RAG ? ragSatelliteInfo : cagSatelliteInfo);
 
-  useEffect(() => {
-    setAgent(null);
-    setLlmSatelliteInfo('');
-    setRagSatelliteInfo('');
-    setCagSatelliteInfo('');
-  }, [selectedSatellite]);
-
   const onAgentSelect = async (agent: keyof typeof agentInfo) => {
     
     // Check if we already have info for this agent
@@ -172,7 +165,6 @@ const Tooltip = ({ agent, text }: { agent: Agent, text: string }) => {
 
   useEffect(() => {
     setMounted(true);
-    return () => setMounted(false);
   }, []);
 
   const handleMouseEnter = (e: React.MouseEvent) => {

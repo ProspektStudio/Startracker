@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { SatelliteData } from '../services/types';
 
+export const groups = [
+  { value: 'stations', label: 'Space Stations' },
+  // { value: 'starlink', label: 'Starlink' },
+  { value: 'globalstar', label: 'Globalstar' },
+  { value: 'intelsat', label: 'Intelsat' },
+  { value: 'satnogs', label: 'SatNOGS' },
+];
+
 interface ClientState {
   selectedGroup: string;
   satellites: SatelliteData[];
