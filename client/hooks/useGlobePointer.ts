@@ -34,8 +34,7 @@ export function useGlobePointer(
   renderer: THREE.WebGLRenderer | null,
   controls: OrbitControls | null,
   refs: UseGlobePointerRefs,
-  setters: UseGlobePointerSetters,
-  onSatelliteSelectRef: React.MutableRefObject<((satellite: SatelliteData) => void) | null>
+  setters: UseGlobePointerSetters
 ) {
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, text: '', x: 0, y: 0 });
   const [popup, setPopup] = useState<PopupState>({ visible: false, data: null, x: 0, y: 0 });
@@ -170,7 +169,6 @@ export function useGlobePointer(
         const pointData = satelliteDataRef.current[index];
         if (pointData) {
           setSelectedSatellite(pointData.data);
-          onSatelliteSelectRef.current?.(pointData.data);
         }
       }
     };

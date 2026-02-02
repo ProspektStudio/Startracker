@@ -63,8 +63,6 @@ const Globe: React.FC = () => {
     onMouseMove: (e: MouseEvent) => void;
     handleClick: (e: MouseEvent) => void;
   } | null>(null);
-  const onSatelliteSelectRef = useRef<((satellite: SatelliteData) => void) | null>(null);
-
   const { scene, camera, renderer, controls } = useGlobeScene(containerRef, {
     initialCameraPositionRef: initialCameraPosition,
     initialControlsTargetRef: initialControlsTarget,
@@ -125,8 +123,7 @@ const Globe: React.FC = () => {
       onMouseMoveRef,
       handleClickRef,
     },
-    { setSelectedSatellite, setActiveOrbit },
-    onSatelliteSelectRef
+    { setSelectedSatellite, setActiveOrbit }
   );
 
   selectedSatelliteRef.current = selectedSatellite;
@@ -186,8 +183,6 @@ const Globe: React.FC = () => {
       setPopup({ visible: true, data: satellite, x, y });
     });
   }, [scene, camera, controls, renderer, setPopup, setTooltip, setActiveOrbit]);
-
-  onSatelliteSelectRef.current = handleSatelliteSelect;
 
   // Setup Three.js scene
   useEffect(() => {
@@ -282,15 +277,13 @@ const Globe: React.FC = () => {
       hoveredPointIndexRef.current = null;
       setSatellites(dataWithPhase.map((d) => d.data));
       if (dataWithPhase.length > 0) {
-        const first = dataWithPhase[0].data;
-        setSelectedSatellite(first);
-        handleSatelliteSelect(first);
+        setSelectedSatellite(dataWithPhase[0].data);
       }
     } catch (error) {
       satellitePointsRef.current = null;
       satelliteDataRef.current = [];
     }
-  }, [selectedGroup, setSelectedSatellite, handleSatelliteSelect]);
+  }, [selectedGroup, setSelectedSatellite]);
 
   const handleGroupSelect = useCallback(async () => {
     setTimeout(() => {
@@ -318,6 +311,12 @@ const Globe: React.FC = () => {
   useEffect(() => {
     handleGroupSelect();
   }, [selectedGroup, handleGroupSelect]);
+
+  // When selectedSatellite changes (e.g. from dropdown or click), update the view: fly to satellite, show orbit, popup
+  useEffect(() => {
+    if (!selectedSatellite || !scene || !camera || !controls) return;
+    handleSatelliteSelect(selectedSatellite);
+  }, [selectedSatellite, handleSatelliteSelect, scene, camera, controls]);
 
   return (
     <div ref={containerRef} style={{ height: '100%' }} className="flex-1">
